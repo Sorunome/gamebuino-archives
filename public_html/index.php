@@ -110,6 +110,9 @@ function cutAtChar($string,$width = 150){
 class Page {
 	private function getHeader($title){
 		global $isLoggedIn,$username,$isAdmin;
+		ob_start();
+		include('../navbar/navbar.html');
+		$globalnav = ob_get_clean();
 		return '<!DOCTYPE html>
 			<html>
 			<head>
@@ -119,7 +122,7 @@ class Page {
 				<meta http-equiv="content-language" content="en-gb">
 				<link rel="shortcut icon" href="/favicon.ico">
 			</head>
-			<body>
+			<body>'.$globalnav.'
 			<h1><img src="http://gamebuino.com/navbar/gamebuino_logo_160.png" alt="gamebuino"> Games</h1><br>
 			<ul id="headerNav" class="centercont">
 				<li><a href=".">Recent files</a></li>
