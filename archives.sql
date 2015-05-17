@@ -51,10 +51,11 @@ CREATE TABLE IF NOT EXISTS `archive_files` (
   `complexity` int(11) NOT NULL,
   `name` text NOT NULL,
   `downloads` int(11) NOT NULL DEFAULT '0',
-  `rating` int(11) NOT NULL DEFAULT '0',
+  `upvotes` int(11) NOT NULL DEFAULT '0',
+  `downvotes` int(11) NOT NULL DEFAULT '0',
   `votes` text NOT NULL,
   `version` int(11) NOT NULL DEFAULT '0',
-  `category` int(11) NOT NULL,
+  `category` text NOT NULL,
   `filename` text NOT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8;

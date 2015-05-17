@@ -4,7 +4,9 @@ $phpbb_root_path = '../forum/';
 $adminTypes = array(3);
 $phpEx = substr(strrchr(__FILE__, '.'),1);
 include($phpbb_root_path.'common.'.$phpEx);
-$request->enable_super_globals();
+if(isset($request)){
+	$request->enable_super_globals();
+}
 
 $user->session_begin();
 $auth->acl($user->data);
@@ -93,7 +95,7 @@ function getCategoryListDropdown($cid = 1,$pre = ''){
 	$result = $db->sql_query(query_escape("SELECT `id`,`name` FROM `archive_categories` WHERE `category`=%d",$cid));
 	while($cat = $db->sql_fetchrow($result)){
 		if((int)$cat['id'] != 1){
-			$cats[(int)$cat['id']] = $pre.'> '.$cat['name'];
+			$cats['_'.$cat['id']] = $pre.'> '.$cat['name'];
 			$cats = $cats + getCategoryListDropdown((int)$cat['id'],$pre.'-');
 		}
 	}
@@ -106,6 +108,98 @@ function cutAtChar($string,$width = 150){
 		return substr($string,0,strpos($string, "\n")).' [...]';
 	}
 	return $string;
+}
+function getEditForm($gamefile = false){
+	global $versionsDropdown,$complexitiesDropdown;
+	$edit = $gamefile!==false;
+	if(!$edit){
+		$gamefile = array(
+			'name' => '',
+			'description' => '',
+			'version' => 0,
+			'complexity' => 0,
+			'forum_url' => '',
+			'repo_url' => '',
+			'category' => '[0]',
+			'images' => '[]'
+		);
+	}
+	$images = json_decode($gamefile['images'],true);
+	for($i = 0;$i < 4;$i++){
+		$images[$i] = $images[$i]?$images[$i]:'';
+	}
+	$html = '<form id="fileeditform" action="?'.($edit?'save='.$gamefile['id']:'upload').'" method="post" enctype="multipart/form-data">
+			Name:<input type="text" name="name" value="'.htmlentities($gamefile['name']).'"><br>
+			'.($edit?'New zip-file (leave blank if it didn\'t change):':'Zip-file:').'<input type="file" name="zip"><br>
+			Forum-Topic (optional):<input type="url" name="forum_url" value="'.htmlentities($gamefile['forum_url']).'"><br>
+			Code-Repository (optional):<input type="url" name="repo_url" value="'.htmlentities($gamefile['repo_url']).'"><br>
+			Version:<select name="version" size="1">';
+	
+	foreach($versionsDropdown as $i => $v){
+		$html .= '<option value="'.$i.'" '.($gamefile['version']==$i?'selected':'').'>'.$v.'</option>';
+	}
+	$html .= '</select><br>
+			Complexity:<select name="complexity" size="1">';
+	
+	foreach($complexitiesDropdown as $i => $c){
+		$html .= '<option value="'.$i.'" '.($gamefile['complexity']==$i?'selected':'').'>'.$c.'</option>';
+	}
+	$html .= '</select><br><input type="hidden" name="category" value="'.htmlentities($gamefile['category']).'">
+			Categories:<span id="categoriesContent">Please enable Javascript!</span>';
+	$catlist = getCategoryListDropdown();
+	$cats = explode('][',substr($gamefile['category'],1,strlen($gamefile['category'])-2));
+	$html .= '<br>
+			Description:<br>
+			<textarea name="description">'.htmlentities($gamefile['description']).'</textarea>
+			<br>
+			Screenshots (all optional):<br>
+			Image 1 (main image):<input type="url" name="image0" value="'.htmlentities($images[0]).'"><br>
+			Image 2:<input type="url" name="image1" value="'.htmlentities($images[1]).'"><br>
+			Image 3:<input type="url" name="image2" value="'.htmlentities($images[2]).'"><br>
+			Image 4:<input type="url" name="image3" value="'.htmlentities($images[3]).'"><br>
+			<input type="submit" value="Save Edit">
+		</form>
+		<script type="text/javascript">
+			(function(){
+				var catlist = '.json_encode($catlist).',
+					cats = '.json_encode($cats).',
+					makeCatList = function(v){
+						return $("<div>").addClass("categoryDropdown").append(
+							$("<select>").attr("size","1").append(
+								$.map(catlist,function(c,i){
+									i = i.substr(1);
+									return $("<option>").text(c).attr((i==v?"selected":"false"),"selected").val(i);
+								})
+							),"&nbsp;",
+							$("<a>").text("x").attr("href","http://remove").click(function(e){
+								e.preventDefault();
+								$(this).parent().remove();
+							})
+						);
+					};
+				$("#categoriesContent").empty().append(
+					$.map(cats,function(v){
+						return makeCatList(v);
+					})
+				).after($("<a>").text("+ add Category").attr("href","http://add").click(function(e){
+					e.preventDefault();
+					$("#categoriesContent").append(makeCatList());
+				}));
+				$("#fileeditform").submit(function(e){
+					var catIdsMix = $(".categoryDropdown select").map(function(){return this.value;}),
+						catIds = [];
+					$.each(catIdsMix,function(i,el){
+						if($.inArray("["+el+"]",catIds) === -1){
+							catIds.push("["+el+"]");
+						}
+					});
+					this.category.value = catIds.join("");
+					
+					// no e.preventDefault() as we still want to send it
+				});
+			})();
+		</script>';
+	return $html;
 }
 class Page {
 	private function getHeader($title){
@@ -121,6 +215,7 @@ class Page {
 				<link rel="stylesheet" type="text/css" href="style.css">
 				<meta http-equiv="content-language" content="en-gb">
 				<link rel="shortcut icon" href="/favicon.ico">
+				<script type="text/javascript" src="jquery-2.0.3.min.js"></script>
 			</head>
 			<body>'.$globalnav.'
 			<h1><img src="http://gamebuino.com/navbar/gamebuino_logo_160.png" alt="gamebuino"> Games</h1><br>
@@ -207,14 +302,17 @@ function validateUpload(){
 	global $db;
 	$complexity = request_var('complexity',0);
 	$version = request_var('version',0);
-	$cid = request_var('category',1);
-	if(request_var('name','') != '' && $complexity >= 0 && $complexity <= 2 && $version >= 0 && $version <= 2 && $cid != 1 && (int)$cid == $cid){
-		$result = $db->sql_query(query_escape("SELECT `id` FROM `archive_categories` WHERE `id`=%d",$cid));
-		if($db->sql_fetchrow($result)){
+	$cid = request_var('category','');
+	if(request_var('name','') != '' && $complexity >= 0 && $complexity <= 2 && $version >= 0 && $version <= 2 && preg_match("/^(\[\d+\])+$/",$cid)){
+		foreach(explode('][',substr($cid,1,strlen($cid)-2)) as $c){
+			$result = $db->sql_query(query_escape("SELECT `id` FROM `archive_categories` WHERE `id`=%d",$c));
+			if(!$db->sql_fetchrow($result)){
+				$db->sql_freeresult($result);
+				return false;
+			}
 			$db->sql_freeresult($result);
-			return true;
 		}
-		$db->sql_freeresult($result);
+		return true;
 	}
 	return false;
 }
@@ -240,7 +338,7 @@ function getFileHTML($gamefile){
 			<div class="popup">
 				<div class="description">'.htmlentities(cutAtChar($gamefile['description'])).'</div>
 				<div class="downloads">'.$gamefile['downloads'].'</div>
-				<div class="rating">'.$gamefile['rating'].'</div>
+				<div class="rating">+'.$gamefile['upvotes'].'/-'.$gamefile['downvotes'].'</div>
 			</div>
 			<img src="'.$image.'" alt="'.htmlentities($gamefile['name']).'">
 		</a>
@@ -251,7 +349,7 @@ if(request_var('file',false)){
 	$html = '<b>Error: file not found</b>';
 	$title = 'File not found';
 	if((int)$fid == $fid){
-		$result = $db->sql_query(query_escape("SELECT `filename`,`category`,`forum_url`,`repo_url`,`version`,`complexity`,`id`,`author`,`description`,UNIX_TIMESTAMP(`ts_updated`) AS `ts_updated`,UNIX_TIMESTAMP(`ts_added`) AS `ts_added`,`images`,`name`,`downloads`,`rating` FROM `archive_files` WHERE `id`=%d",$fid));
+		$result = $db->sql_query(query_escape("SELECT `filename`,`category`,`forum_url`,`repo_url`,`version`,`complexity`,`id`,`author`,`description`,UNIX_TIMESTAMP(`ts_updated`) AS `ts_updated`,UNIX_TIMESTAMP(`ts_added`) AS `ts_added`,`images`,`name`,`downloads`,`upvotes`,`downvotes` FROM `archive_files` WHERE `id`=%d",$fid));
 		if($gamefile = $db->sql_fetchrow($result)){
 			$title = htmlentities($gamefile['name']);
 			$html = '';
@@ -263,7 +361,7 @@ if(request_var('file',false)){
 				<tr><th colspan="2">'.htmlentities($gamefile['name']).' ( <a href="?dl='.$fid.'">Download</a> )</th></tr>
 				<tr><td>Author</td><td><a href="/forum/memberlist.php?mode=viewprofile&u='.$gamefile['author'].'">'.htmlentities(getUserById($gamefile['author'])).'</a></td></tr>
 				<tr><td>Downloads</td><td>'.$gamefile['downloads'].'</td></tr>
-				<tr><td>Rating</td><td>'.$gamefile['rating'].' '.
+				<tr><td>Rating</td><td>+'.$gamefile['upvotes'].'/-'.$gamefile['downvotes'].'&nbsp;&nbsp;&nbsp;'.
 				($isLoggedIn?
 					'<a href="?rate='.$gamefile['id'].'&dir=1">+</a> <a href="?rate='.$gamefile['id'].'&dir=-1">-</a>'
 				:
@@ -281,9 +379,12 @@ if(request_var('file',false)){
 				:'').
 				($gamefile['repo_url']!=''?
 					'<tr><td>Code-Repository</td><td><a href="'.htmlentities($gamefile['repo_url']).'">'.htmlentities($gamefile['repo_url']).'</a></td></tr>'
-				:'')
-				.'
-				<tr><td>Category</td><td><a href="?cat='.$gamefile['category'].'">'.$cats[(int)$gamefile['category']].'</a></td></tr>
+				:'').'<tr><td>Categories</td><td>';
+			foreach(explode('][',substr($gamefile['category'],1,strlen($gamefile['category'])-2)) as $c){
+				$html .= '<a href="?cat='.$c.'">'.$cats[$c].'</a> ';
+			}
+			$html .= '
+				</td></tr>
 				</table><br>
 				
 					<h2>SCREENSHOTS</h2>';
@@ -304,10 +405,10 @@ if(request_var('file',false)){
 						$html .= '<div class="zipcontentsitem">'.htmlentities($zip->getNameIndex($i)).'</div>';
 					}
 					$html .= '</div></div>';
+					$zip->close();
 				}else{
 					$html .= '<b>Couldn\'t open zip archive!</b>';
 				}
-				$zip->close();
 			}
 		}
 		$db->sql_freeresult($result);
@@ -350,7 +451,7 @@ if(request_var('file',false)){
 			}
 			$db->sql_freeresult($result2);
 			
-			$result2 = $db->sql_query(query_escape("SELECT `id`,`author`,`description`,`images`,`name`,`downloads`,`rating` FROM `archive_files` WHERE `category`=%d ORDER BY `ts_updated` DESC",$cid));
+			$result2 = $db->sql_query(query_escape("SELECT `id`,`author`,`description`,`images`,`name`,`downloads`,`upvotes`,`downvotes` FROM `archive_files` WHERE `category` LIKE '%s' ORDER BY `ts_updated` DESC",'%['.(int)$cid.']%'));
 			while($gamefile = $db->sql_fetchrow($result2)){
 				$html .= getFileHTML($gamefile);
 			}
@@ -363,20 +464,30 @@ if(request_var('file',false)){
 }elseif(request_var('rate',false)){
 	$fid = request_var('rate','invalid');
 	if($isLoggedIn && (int)$fid == $fid){
-		$result = $db->sql_query(query_escape("SELECT `rating`,`votes` FROM `archive_files` WHERE `id`=%d",$fid));
+		$result = $db->sql_query(query_escape("SELECT `upvotes`,`downvotes`,`votes` FROM `archive_files` WHERE `id`=%d",$fid));
 		if($gamefile = $db->sql_fetchrow($result)){
 			$dir = (int)request_var('dir',0);
 			if($dir == 1 || $dir == -1){
-				$rating = (int)$gamefile['rating'];
+				$up = (int)$gamefile['upvotes'];
+				$down = (int)$gamefile['downvotes'];
 				$votes = json_decode($gamefile['votes'],true);
 				if($votes == NULL){
 					$votes = array();
 				}
 				if(isset($votes[$userid])){
-					$rating -= $votes[$userid]; // revert the old vote
+					if($votes[$userid] > 0){
+						$up--;
+					}else{
+						$down--;
+					}
 				}
 				$votes[$userid] = $dir;
-				$db->sql_freeresult($db->sql_query(query_escape("UPDATE `archive_files` SET `rating`=%d,`votes`='%s' WHERE `id`=%d",$rating + $dir,json_encode($votes),$fid)));
+				if($dir > 0){
+					$up++;
+				}else{
+					$down++;
+				}
+				$db->sql_freeresult($db->sql_query(query_escape("UPDATE `archive_files` SET `upvotes`=%d,`downvotes`=%d,`votes`='%s' WHERE `id`=%d",$up,$down,json_encode($votes),$fid)));
 			}
 		}
 		$db->sql_freeresult($result);
@@ -388,51 +499,10 @@ if(request_var('file',false)){
 	$title = 'Error';
 	$html = '<b>Error: Permission Denied</b>';
 	if($isLoggedIn && (int)$fid == $fid){
-		$result = $db->sql_query(query_escape("SELECT `author`,`name`,`description`,`version`,`complexity`,`forum_url`,`repo_url`,`category`,`images` FROM `archive_files` WHERE `id`=%d",$fid));
+		$result = $db->sql_query(query_escape("SELECT `id`,`author`,`name`,`description`,`version`,`complexity`,`forum_url`,`repo_url`,`category`,`images` FROM `archive_files` WHERE `id`=%d",$fid));
 		if($gamefile = $db->sql_fetchrow($result)){
 			if($userid == $gamefile['author'] || $isAdmin){ // we may edit the file
-				$images = json_decode($gamefile['images'],true);
-				for($i = 0;$i < 4;$i++){
-					$images[$i] = $images[$i]?$images[$i]:'';
-				}
-				$html = '
-					<a href="?file='.$fid.'">Back</a><br><br>
-					<form action="?save='.$fid.'" method="post" enctype="multipart/form-data">
-						Name:<input type="text" name="name" value="'.htmlentities($gamefile['name']).'"><br>
-						New zip-file (leave blank if it didn\'t change):<input type="file" name="zip"><br>
-						Forum-Topic (optional):<input type="url" name="forum_url" value="'.htmlentities($gamefile['forum_url']).'"><br>
-						Code-Repository (optional):<input type="url" name="repo_url" value="'.htmlentities($gamefile['repo_url']).'"><br>
-						Version:<select name="version" size="1">';
-				
-				foreach($versionsDropdown as $i => $v){
-					$html .= '<option value="'.$i.'" '.($gamefile['version']==$i?'selected':'').'>'.$v.'</option>';
-				}
-				$html .= '</select><br>
-						Complexity:<select name="complexity" size="1">';
-				
-				foreach($complexitiesDropdown as $i => $c){
-					$html .= '<option value="'.$i.'" '.($gamefile['complexity']==$i?'selected':'').'>'.$c.'</option>';
-				}
-				$html .= '</select><br>
-						Category:<select name="category" size="1">';
-				$cats = getCategoryListDropdown();
-				foreach($cats as $i => $c){
-					if($i != 1){
-						$html .= '<option value="'.$i.'" '.($gamefile['category']==$i?'selected':'').'>'.$c.'</option>';
-					}
-				}
-				$html .= '</select><br>
-						Description:<br>
-						<textarea name="description">'.htmlentities($gamefile['description']).'</textarea>
-						<br>
-						Screenshots (all optional):<br>
-						Image 1 (main image):<input type="url" name="image0" value="'.htmlentities($images[0]).'"><br>
-						Image 2:<input type="url" name="image1" value="'.htmlentities($images[1]).'"><br>
-						Image 3:<input type="url" name="image2" value="'.htmlentities($images[2]).'"><br>
-						Image 4:<input type="url" name="image3" value="'.htmlentities($images[3]).'"><br>
-						<input type="submit" value="Save Edit">
-					</form>
-				';
+				$html = '<a href="?file='.$fid.'">Back</a><br><br>'.getEditForm($gamefile);
 			}
 		}
 		$db->sql_freeresult($result);
@@ -448,7 +518,7 @@ if(request_var('file',false)){
 			if($userid == $gamefile['author'] || $isAdmin){ // we may edit the file
 				if(validateUpload()){
 					$db->sql_freeresult($db->sql_query(query_escape(
-						"UPDATE `archive_files` SET `name`='%s',`description`='%s',`forum_url`='%s',`repo_url`='%s',`version`=%d,`complexity`=%d,`category`=%d,`images`='%s' WHERE `id`=%d",
+						"UPDATE `archive_files` SET `name`='%s',`description`='%s',`forum_url`='%s',`repo_url`='%s',`version`=%d,`complexity`=%d,`category`='%s',`images`='%s' WHERE `id`=%d",
 							request_var('name','invalid'),request_var('description',''),getUrl_safe(request_var('forum_url','')),getUrl_safe(request_var('repo_url',''))
 							,request_var('version',0),request_var('complexity',0),request_var('category','invalid'),json_encode(getImagesArrayFromUpload())
 							,$fid)));
@@ -475,42 +545,7 @@ if(request_var('file',false)){
 	$title = 'Upload file';
 	$html = 'You need to <a href="/forum/ucp.php?mode=register">Register</a> or <a href="/forum/ucp.php?mode=login">Login</a> to be able to upload a file!';
 	if($isLoggedIn){
-		$html = '<h1>Upload new file</h1>
-			<form action="?upload" method="post" enctype="multipart/form-data">
-					Name:<input type="text" name="name"><br>
-					Zip-file:<input type="file" name="zip"><br>
-					Forum-Topic (optional):<input type="url" name="forum_url"><br>
-					Code-Repository (optional):<input type="url" name="repo_url"><br>
-					Version:<select name="version" size="1">';
-				
-				foreach($versionsDropdown as $i => $v){
-					$html .= '<option value="'.$i.'">'.$v.'</option>';
-				}
-				$html .= '</select><br>
-						Complexity:<select name="complexity" size="1">';
-				
-				foreach($complexitiesDropdown as $i => $c){
-					$html .= '<option value="'.$i.'">'.$c.'</option>';
-				}
-				$html .= '</select><br>
-						Category:<select name="category" size="1">';
-				$cats = getCategoryListDropdown();
-				foreach($cats as $i => $c){
-					if($i != 1){
-						$html .= '<option value="'.$i.'">'.$c.'</option>';
-					}
-				}
-				$html .= '</select><br>
-					Description:<br>
-					<textarea name="description"></textarea>
-					<br>
-					Screenshots (all optional):<br>
-					Image 1 (main image):<input type="url" name="image0"><br>
-					Image 2:<input type="url" name="image1"><br>
-					Image 3:<input type="url" name="image2"><br>
-					Image 4:<input type="url" name="image3"><br>
-					<input type="submit" value="Upload">
-				</form>';
+		$html = '<h1>Upload new file</h1>'.getEditForm(false);
 	}
 	$page->getPage($title,$html);
 }elseif(isset($_GET['upload'])){
@@ -519,7 +554,7 @@ if(request_var('file',false)){
 	if($isLoggedIn){
 		if(validateUpload() && sizeof($_FILES)>0 && isset($_FILES['zip']) && !is_array($_FILES['zip']['name']) && $_FILES['zip']['name'] !== ''){
 			$db->sql_query(query_escape(
-						"INSERT INTO `archive_files` (`name`,`description`,`forum_url`,`repo_url`,`version`,`complexity`,`category`,`author`,`images`,`votes`,`filename`,`ts_updated`) VALUES ('%s','%s','%s','%s',%d,%d,%d,%d,'%s','{}','',FROM_UNIXTIME('%s'))",
+						"INSERT INTO `archive_files` (`name`,`description`,`forum_url`,`repo_url`,`version`,`complexity`,`category`,`author`,`images`,`votes`,`filename`,`ts_updated`) VALUES ('%s','%s','%s','%s',%d,%d,'%s',%d,'%s','{}','',FROM_UNIXTIME('%s'))",
 							request_var('name','invalid'),request_var('description',''),getUrl_safe(request_var('forum_url','')),getUrl_safe(request_var('repo_url',''))
 							,request_var('version',0),request_var('complexity',0),request_var('category','invalid'),$userid,json_encode(getImagesArrayFromUpload()),time()
 							));
@@ -538,7 +573,7 @@ if(request_var('file',false)){
 	$page->getPage($title,$html);
 }else{
 	$html = '<h2>Recent Files</h2><div id="files">';
-	$result = $db->sql_query("SELECT `id`,`author`,`description`,`images`,`name`,`downloads`,`rating` FROM `archive_files` ORDER BY `ts_updated` DESC LIMIT 10");
+	$result = $db->sql_query("SELECT `id`,`author`,`description`,`images`,`name`,`downloads`,`upvotes`,`downvotes` FROM `archive_files` ORDER BY `ts_updated` DESC LIMIT 10");
 	while($gamefile = $db->sql_fetchrow($result)){
 		$html .= getFileHTML($gamefile);
 	}
