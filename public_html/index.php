@@ -157,7 +157,7 @@ function getEditForm($gamefile = false){
 			Image 2:<input type="url" name="image1" value="'.htmlentities($images[1]).'"><br>
 			Image 3:<input type="url" name="image2" value="'.htmlentities($images[2]).'"><br>
 			Image 4:<input type="url" name="image3" value="'.htmlentities($images[3]).'"><br>
-			<input type="submit" value="Save Edit">
+			<input type="submit" value="'.($edit?'Save Edit':'Upload File').'">
 		</form>
 		<script type="text/javascript">
 			(function(){
@@ -268,10 +268,24 @@ class Uploads {
 					fclose($fh);
 					if(strpos($blob,'PK') === 0){ // this is a zip file!
 						if(filesize($name) < $this->maxfilesize){
-							if(file_exists($oldName)){
-								unlink($oldName);
+							$valid = false;
+							if(class_exists('ZipArchive')){ // we can do more checks!
+								$zip = new ZipArchive();
+								if($zip->open($name)){
+									if($zip->numFiles > 0){
+										$valid = true;
+									}
+									$zip->close();
+								}
+							}else{
+								$valid = true;
 							}
-							return true;
+							if($valid){
+								if(file_exists($oldName)){
+									unlink($oldName);
+								}
+								return true;
+							}
 						}
 					}
 				}
