@@ -519,9 +519,9 @@ if(request_var('file',false)){
 	if($isLoggedIn){
 		if(validateUpload() && sizeof($_FILES)>0 && isset($_FILES['zip']) && !is_array($_FILES['zip']['name']) && $_FILES['zip']['name'] !== ''){
 			$db->sql_query(query_escape(
-						"INSERT INTO `archive_files` (`name`,`description`,`forum_url`,`repo_url`,`version`,`complexity`,`category`,`author`,`images`,`votes`,`filename`) VALUES ('%s','%s','%s','%s',%d,%d,%d,%d,'%s','{}','')",
+						"INSERT INTO `archive_files` (`name`,`description`,`forum_url`,`repo_url`,`version`,`complexity`,`category`,`author`,`images`,`votes`,`filename`,`ts_updated`) VALUES ('%s','%s','%s','%s',%d,%d,%d,%d,'%s','{}','',FROM_UNIXTIME('%s'))",
 							request_var('name','invalid'),request_var('description',''),getUrl_safe(request_var('forum_url','')),getUrl_safe(request_var('repo_url',''))
-							,request_var('version',0),request_var('complexity',0),request_var('category','invalid'),$userid,json_encode(getImagesArrayFromUpload())
+							,request_var('version',0),request_var('complexity',0),request_var('category','invalid'),$userid,json_encode(getImagesArrayFromUpload()),time()
 							));
 			
 			$fid = $db->sql_nextid();

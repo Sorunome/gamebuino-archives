@@ -43,7 +43,7 @@ CREATE TABLE IF NOT EXISTS `archive_files` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `author` int(11) NOT NULL,
   `ts_added` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `ts_updated` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `ts_updated` timestamp NOT NULL,
   `description` text NOT NULL,
   `images` text NOT NULL,
   `forum_url` text NOT NULL,
