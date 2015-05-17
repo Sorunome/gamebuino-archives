@@ -1,6 +1,6 @@
 <?php
 define('IN_PHPBB', true);
-$phpbb_root_path = '/home/sorunome/public_html/phpBB3/';
+$phpbb_root_path = '../forum/';
 $adminTypes = array(3);
 $phpEx = substr(strrchr(__FILE__, '.'),1);
 include($phpbb_root_path.'common.'.$phpEx);
