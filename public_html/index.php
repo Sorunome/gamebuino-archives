@@ -58,27 +58,6 @@ function query_escape(){
 	}
 	return vsprintf($query,$args);
 }
-$userIdList = array();
-function getUserById($id){
-	global $userIdList,$db;
-	if($id == (int)$id){
-		$id = (int)$id;
-		if(isset($userIdList[$id])){
-			return $userIdList[$id];
-		}else{
-			$result = $db->sql_query(query_escape("SELECT `username` FROM ".USERS_TABLE." WHERE `user_id`=%d",$id));
-			if($u = $db->sql_fetchrow($result)){
-				$db->sql_freeresult($result);
-				$userIdList[$id] = $u['username'];
-				return $u['username'];
-			}else{
-				$db->sql_freeresult($result);
-				return 'Anonymous';
-			}
-		}
-	}
-	return 'Anonymous';
-}
 function getCategoryList(){
 	global $db;
 	$cats = array();
@@ -246,8 +225,9 @@ function getFileSorter($url = '?',$limit = false){
 	</div>';
 	return $html;
 }
-function getSortSQL($limit = false){
-	$cursort = (int)request_var('sort',0);
+function getSortSQL($where = '',$limit = false){
+	$s = "SELECT t1.`id`,t1.`author`,t1.`description`,t1.`images`,t1.`name`,t1.`downloads`,t1.`upvotes`,t1.`downvotes`,t2.`username` FROM `archive_files` AS t1 INNER JOIN ".USERS_TABLE." AS t2 ON t1.`author` = t2.`user_id`";
+	$cursort = (int)request_var('sort',3);
 	$curdir = (int)request_var('direction',0);
 	if($cursort > 5 || $cursort < 0){
 		$cursort = 0;
@@ -259,15 +239,15 @@ function getSortSQL($limit = false){
 		$curdir = 1-$curdir;
 	}
 	$sortcolumns = array(
-		'`ts_updated`',
-		'`ts_added`',
-		'`name`',
-		'INNER JOIN '.USERS_TABLE.' t2 on `archive_files`.`author`=t2.`user_id` ORDER BY t2.`username`', // dark magic
-		'(`upvotes`-`downvotes`)',
-		'`downloads`'
+		'ORDER BY t1.`ts_updated`',
+		'ORDER BY t1.`ts_added`',
+		'ORDER BY LOWER(t1.`name`)',
+		'ORDER BY LOWER(t2.`username`)',
+		'ORDER BY (t1.`upvotes`-t1.`downvotes`)',
+		'ORDER BY t1.`downloads`'
 	);
 	$dirs = array('DESC','ASC');
-	$s = 'ORDER BY '.$sortcolumns[$cursort].' '.$dirs[$curdir];
+	$s .= $where.' '.$sortcolumns[$cursort].' '.$dirs[$curdir];
 	if($limit){
 		$curlimit = (int)request_var('limit',10);
 		if($curlimit < 1 || $curlimit > 200){
@@ -424,7 +404,7 @@ function getFileHTML($gamefile){
 	return '
 		<a class="filecont" href="?file='.$gamefile['id'].'">
 			<div class="name">'.htmlentities($gamefile['name']).'</div>
-			<div class="author">'.htmlentities(getUserById($gamefile['author'])).'</div>
+			<div class="author">'.htmlentities($gamefile['username']).'</div>
 			<div class="popup">
 				<div class="description">'.htmlentities(cutAtChar($gamefile['description'])).'</div>
 				<div class="downloads">'.$gamefile['downloads'].'</div>
@@ -439,7 +419,9 @@ if(request_var('file',false)){
 	$html = '<b>Error: file not found</b>';
 	$title = 'File not found';
 	if((int)$fid == $fid){
-		$result = $db->sql_query(query_escape("SELECT `filename`,`category`,`forum_url`,`repo_url`,`version`,`complexity`,`id`,`author`,`description`,UNIX_TIMESTAMP(`ts_updated`) AS `ts_updated`,UNIX_TIMESTAMP(`ts_added`) AS `ts_added`,`images`,`name`,`downloads`,`upvotes`,`downvotes` FROM `archive_files` WHERE `id`=%d",$fid));
+		$result = $db->sql_query(query_escape("SELECT t1.`filename`,t1.`category`,t1.`forum_url`,t1.`repo_url`,t1.`version`,t1.`complexity`,t1.`id`,t1.`author`,
+					t1.`description`,UNIX_TIMESTAMP(t1.`ts_updated`) AS `ts_updated`,UNIX_TIMESTAMP(t1.`ts_added`) AS `ts_added`,t1.`images`,t1.`name`,t1.`downloads`,
+					t1.`upvotes`,t1.`downvotes`,t2.`username` FROM `archive_files` AS t1 INNER JOIN ".USERS_TABLE." AS t2 ON t1.`author` = t2.`user_id` WHERE t1.`id`=%d",$fid));
 		if($gamefile = $db->sql_fetchrow($result)){
 			$title = htmlentities($gamefile['name']);
 			$html = '';
@@ -449,7 +431,7 @@ if(request_var('file',false)){
 			$cats = getCategoryList();
 			$html .= '<table id="fileDescription" cellspacing="0" cellpadding="0">
 				<tr><th colspan="2">'.htmlentities($gamefile['name']).' ( <a href="?dl='.$fid.'">Download</a> )</th></tr>
-				<tr><td>Author</td><td><a href="/forum/memberlist.php?mode=viewprofile&u='.$gamefile['author'].'">'.htmlentities(getUserById($gamefile['author'])).'</a></td></tr>
+				<tr><td>Author</td><td><a href="/forum/memberlist.php?mode=viewprofile&u='.$gamefile['author'].'">'.htmlentities($gamefile['username']).'</a></td></tr>
 				<tr><td>Downloads</td><td>'.$gamefile['downloads'].'</td></tr>
 				<tr><td>Rating</td><td>+'.$gamefile['upvotes'].'/-'.$gamefile['downvotes'].'&nbsp;&nbsp;&nbsp;'.
 				($isLoggedIn?
@@ -541,7 +523,7 @@ if(request_var('file',false)){
 			}
 			$db->sql_freeresult($result2);
 			$first = true;
-			$result2 = $db->sql_query(query_escape("SELECT `id`,`author`,`description`,`images`,`name`,`downloads`,`upvotes`,`downvotes` FROM `archive_files` WHERE `category` LIKE '%s' ".getSortSQL(),'%['.(int)$cid.']%'));
+			$result2 = $db->sql_query(query_escape(getSortSQL("WHERE t1.`category` LIKE '%s'"),'%['.(int)$cid.']%'));
 			while($gamefile = $db->sql_fetchrow($result2)){
 				if($first){
 					$html .= getFileSorter('?cat='.$cid,false);
@@ -667,7 +649,7 @@ if(request_var('file',false)){
 	$page->getPage($title,$html);
 }else{
 	$html = '<h2>Gamebuino file archive Files</h2>'.getFileSorter('?',true);
-	$result = $db->sql_query("SELECT `id`,`author`,`description`,`images`,`name`,`downloads`,`upvotes`,`downvotes` FROM `archive_files` ".getSortSQL(true));
+	$result = $db->sql_query(getSortSQL('',true));
 	while($gamefile = $db->sql_fetchrow($result)){
 		$html .= getFileHTML($gamefile);
 	}
