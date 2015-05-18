@@ -225,7 +225,7 @@ function getFileSorter($url = '?',$limit = false){
 	</div>';
 	return $html;
 }
-function getSortSQL($where = '',$limit = false){
+function getFilesSQL($where = '',$limit = false){
 	$s = "SELECT t1.`id`,t1.`author`,t1.`description`,t1.`images`,t1.`name`,t1.`downloads`,t1.`upvotes`,t1.`downvotes`,t2.`username` FROM `archive_files` AS t1 INNER JOIN ".USERS_TABLE." AS t2 ON t1.`author` = t2.`user_id`";
 	$cursort = (int)request_var('sort',3);
 	$curdir = (int)request_var('direction',0);
@@ -431,7 +431,7 @@ if(request_var('file',false)){
 			$cats = getCategoryList();
 			$html .= '<table id="fileDescription" cellspacing="0" cellpadding="0">
 				<tr><th colspan="2">'.htmlentities($gamefile['name']).' ( <a href="?dl='.$fid.'">Download</a> )</th></tr>
-				<tr><td>Author</td><td><a href="/forum/memberlist.php?mode=viewprofile&u='.$gamefile['author'].'">'.htmlentities($gamefile['username']).'</a></td></tr>
+				<tr><td>Author</td><td><a href="?author='.$gamefile['author'].'">'.htmlentities($gamefile['username']).'</a></td></tr>
 				<tr><td>Downloads</td><td>'.$gamefile['downloads'].'</td></tr>
 				<tr><td>Rating</td><td>+'.$gamefile['upvotes'].'/-'.$gamefile['downvotes'].'&nbsp;&nbsp;&nbsp;'.
 				($isLoggedIn?
@@ -502,6 +502,39 @@ if(request_var('file',false)){
 		}
 		$db->sql_freeresult($result);
 	}
+}elseif(request_var('author',false)){
+	$aid = request_var('author','invalid');
+	$html = '<b>Error: author not found</b>';
+	$title = 'Author not found';
+	if((int)$aid == $aid){
+		$result = $db->sql_query(query_escape("SELECT `username` FROM ".USERS_TABLE." WHERE `user_id`=%d",$aid));
+		if($author = $db->sql_fetchrow($result)){
+			$db->sql_freeresult($result);
+			$title = $author['username'];
+			$files = 0;
+			$result = $db->sql_query(query_escape("SELECT COUNT(`id`) AS `files` FROM `archive_files` WHERE `author`=%d",$aid));
+			if($f = $db->sql_fetchrow($result)){
+				$files = (int)$f;
+			}
+			$db->sql_freeresult($result);
+			$html = '<table id="authorDescription" cellspacing="0" cellpadding="0">
+				<tr><th colspan="2">'.htmlentities($author['username']).'</th></tr>
+				<tr><td>Forum&nbsp;Profile</td><td><a href="/forum/memberlist.php?mode=viewprofile&u='.$aid.'">'.htmlentities($author['username']).'</a></td></tr>
+				<tr><td>Number&nbsp;of&nbsp;files</td><td>'.$files.'</td></tr>
+			</table><br>';
+			$first = true;
+			$result = $db->sql_query(query_escape(getFilesSQL("WHERE t1.`author`=%d"),$aid));
+			while($gamefile = $db->sql_fetchrow($result)){
+				if($first){
+					$html .= getFileSorter('?author='.$aid,false);
+					$first = false;
+				}
+				$html .= getFileHTML($gamefile);
+			}
+		}
+		$db->sql_freeresult($result);
+	}
+	$page->getPage($title,$html);
 }elseif(request_var('cat',false)){
 	$cid = request_var('cat','invalid');
 	$html = '<b>Error: cateogry not found</b>';
@@ -523,7 +556,7 @@ if(request_var('file',false)){
 			}
 			$db->sql_freeresult($result2);
 			$first = true;
-			$result2 = $db->sql_query(query_escape(getSortSQL("WHERE t1.`category` LIKE '%s'"),'%['.(int)$cid.']%'));
+			$result2 = $db->sql_query(query_escape(getFilesSQL("WHERE t1.`category` LIKE '%s'"),'%['.(int)$cid.']%'));
 			while($gamefile = $db->sql_fetchrow($result2)){
 				if($first){
 					$html .= getFileSorter('?cat='.$cid,false);
@@ -649,7 +682,7 @@ if(request_var('file',false)){
 	$page->getPage($title,$html);
 }else{
 	$html = '<h2>Gamebuino file archive Files</h2>'.getFileSorter('?',true);
-	$result = $db->sql_query(getSortSQL('',true));
+	$result = $db->sql_query(getFilesSQL('',true));
 	while($gamefile = $db->sql_fetchrow($result)){
 		$html .= getFileHTML($gamefile);
 	}

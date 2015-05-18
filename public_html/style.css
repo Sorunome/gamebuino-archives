@@ -131,13 +131,16 @@ article {
 	margin-top:10px;
 	padding:5px;
 }
+#authorDescription,
 #fileDescription {
 	border:2px solid #444;
 }
+#authorDescription *,
 #fileDescription * {
 	border:none;
 	border-collapse:collapse;
 }
+#authorDescription th,
 #fileDescription th {
 	font-width:bold;
 	font-size:30px;
@@ -146,19 +149,23 @@ article {
 	color:white;
 	background-color:#444;
 }
+#authorDescription th a,
 #fileDescription th a {
 	color:#99ADFE;
 }
+#authorDescription td:nth-child(1),
 #fileDescription td:nth-child(1){
 	background-color:#777;
 	text-align:right;
 	padding:3px;
 	margin:3px 3px 0 0;
 }
+#authorDescription td:nth-child(2),
 #fileDescription td:nth-child(2){
 	width:100%;
 	padding:3px;
 }
+#authorDescription tr:nth-child(odd),
 #fileDescription tr:nth-child(odd){
 	background-color:#BBB;
 }
