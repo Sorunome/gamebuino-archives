@@ -17,9 +17,9 @@ $isAdmin = $isLoggedIn && in_array((int)($user->data['user_type']),$adminTypes);
 $username = $user->data['username'];
 $userid = (int)($user->data['user_id']);
 $versions = array(
-	'<img src="http://gamebuino.com/wiki/gamelist/alpha.png" alt="alpha"> Alpha',
-	'<img src="http://gamebuino.com/wiki/gamelist/beta.png" alt="beta"> Beta',
-	'<img src="http://gamebuino.com/wiki/gamelist/release.png" alt="release"> Finished'
+	'<img src="/wiki/gamelist/alpha.png" alt="alpha"> Alpha',
+	'<img src="/wiki/gamelist/beta.png" alt="beta"> Beta',
+	'<img src="/wiki/gamelist/release.png" alt="release"> Finished'
 );
 $versionsDropdown = array(
 	'Alpha',
@@ -27,9 +27,9 @@ $versionsDropdown = array(
 	'Finished'
 );
 $complexities = array(
-	'<img src="http://gamebuino.com/wiki/gamelist/basic.png" alt="basic"> Basic code complexity',
-	'<img src="http://gamebuino.com/wiki/gamelist/intermediate.png" alt="intermediate"> Intermediate code complexity',
-	'<img src="http://gamebuino.com/wiki/gamelist/advanced.png" alt="advanced"> Advanced code complexity'
+	'<img src="/wiki/gamelist/basic.png" alt="basic"> Basic code complexity',
+	'<img src="/wiki/gamelist/intermediate.png" alt="intermediate"> Intermediate code complexity',
+	'<img src="/wiki/gamelist/advanced.png" alt="advanced"> Advanced code complexity'
 );
 $complexitiesDropdown = array(
 	'Basic',
@@ -201,6 +201,82 @@ function getEditForm($gamefile = false){
 		</script>';
 	return $html;
 }
+function getFileSorter($url = '?',$limit = false){
+	$cursort = (int)request_var('sort',0);
+	$curdir = (int)request_var('direction',0);
+	$curlimit = (int)request_var('limit',10);
+	$sorts = array(
+		'Date updated',
+		'Date added',
+		'Name',
+		'Author',
+		'Rating',
+		'Downloads'
+	);
+	$html = '<div id="fileSorter">
+		<div class="sortgroup">';
+	foreach($sorts as $i => $s){
+		if($i == $cursort){
+			$html .= '<div class="button is-checked">'.$s.'</div>';
+		}else{
+			$html .= '<a class="button" href="'.$url.'&sort='.$i.'&direction='.$curdir.($limit?'&limit='.$curlimit:'').'">'.$s.'</a>';
+		}
+	}
+	$html .= '	</div>
+		<div class="sortgroup">';
+	if($curdir == 0){
+		$html .= '<div class="button is-checked">▼</div>
+		<a class="button" href="'.$url.'&sort='.$cursort.'&direction=1'.($limit?'&limit='.$curlimit:'').'">▲</a>';
+	}else{
+		$html .= '<a class="button" href="'.$url.'&sort='.$cursort.'&direction=0'.($limit?'&limit='.$curlimit:'').'">▼</a>
+		<div class="button is-checked">▲</div>';
+	}
+	if($limit){
+		$html .= '</div><div class="sortgroup"><div class="button is-checked" style="cursor:default;">Limit:</div>';
+		$limits = array(10,20,50,100,200);
+		foreach($limits as $l){
+			if($l == $curlimit){
+				$html .= '<div class="button is-checked">'.$l.'</div>';
+			}else{
+				$html .= '<a class="button" href="'.$url.'&sort='.$cursort.'&direction='.$curdir.'&limit='.$l.'">'.$l.'</a>';
+			}
+		}
+	}
+	$html .= '</div>
+	</div>';
+	return $html;
+}
+function getSortSQL($limit = false){
+	$cursort = (int)request_var('sort',0);
+	$curdir = (int)request_var('direction',0);
+	if($cursort > 5 || $cursort < 0){
+		$cursort = 0;
+	}
+	if($curdir > 1 || $curdir < 0){
+		$curdir = 0;
+	}
+	if($cursort == 2 || $cursort == 3){ // name and author are sorted the other way
+		$curdir = 1-$curdir;
+	}
+	$sortcolumns = array(
+		'`ts_updated`',
+		'`ts_added`',
+		'`name`',
+		'INNER JOIN '.USERS_TABLE.' t2 on `archive_files`.`author`=t2.`user_id` ORDER BY t2.`username`', // dark magic
+		'(`upvotes`-`downvotes`)',
+		'`downloads`'
+	);
+	$dirs = array('DESC','ASC');
+	$s = 'ORDER BY '.$sortcolumns[$cursort].' '.$dirs[$curdir];
+	if($limit){
+		$curlimit = (int)request_var('limit',10);
+		if($curlimit < 1 || $curlimit > 200){
+			$curlimit = 1;
+		}
+		$s .= ' LIMIT '.$curlimit;
+	}
+	return $s;
+}
 class Page {
 	private function getHeader($title){
 		global $isLoggedIn,$username,$isAdmin;
@@ -218,7 +294,7 @@ class Page {
 				<script type="text/javascript" src="jquery-2.0.3.min.js"></script>
 			</head>
 			<body>'.$globalnav.'
-			<h1><img src="http://gamebuino.com/navbar/gamebuino_logo_160.png" alt="gamebuino"> Games</h1><br>
+			<h1><img src="/navbar/gamebuino_logo_160.png" alt="gamebuino"> Games</h1><br>
 			<ul id="headerNav" class="centercont">
 				<li><a href=".">Recent files</a></li>
 				<li><a href="?cat=1">Browse files</a></li>'.
@@ -343,7 +419,7 @@ function getFileHTML($gamefile){
 	if(isset($image[0]) && $image[0] != ''){
 		$image = $image[0];
 	}else{
-		$image = 'http://gamebuino.com/forum/styles/metrolike/imageset/forum_read.gif';
+		$image = '/forum/styles/metrolike/imageset/forum_read.gif';
 	}
 	return '
 		<a class="filecont" href="?file='.$gamefile['id'].'">
@@ -464,9 +540,13 @@ if(request_var('file',false)){
 				}
 			}
 			$db->sql_freeresult($result2);
-			
-			$result2 = $db->sql_query(query_escape("SELECT `id`,`author`,`description`,`images`,`name`,`downloads`,`upvotes`,`downvotes` FROM `archive_files` WHERE `category` LIKE '%s' ORDER BY `ts_updated` DESC",'%['.(int)$cid.']%'));
+			$first = true;
+			$result2 = $db->sql_query(query_escape("SELECT `id`,`author`,`description`,`images`,`name`,`downloads`,`upvotes`,`downvotes` FROM `archive_files` WHERE `category` LIKE '%s' ".getSortSQL(),'%['.(int)$cid.']%'));
 			while($gamefile = $db->sql_fetchrow($result2)){
+				if($first){
+					$html .= getFileSorter('?cat='.$cid,false);
+					$first = false;
+				}
 				$html .= getFileHTML($gamefile);
 			}
 			$db->sql_freeresult($result2);
@@ -586,13 +666,13 @@ if(request_var('file',false)){
 	}
 	$page->getPage($title,$html);
 }else{
-	$html = '<h2>Recent Files</h2><div id="files">';
-	$result = $db->sql_query("SELECT `id`,`author`,`description`,`images`,`name`,`downloads`,`upvotes`,`downvotes` FROM `archive_files` ORDER BY `ts_updated` DESC LIMIT 10");
+	$html = '<h2>Gamebuino file archive Files</h2>'.getFileSorter('?',true);
+	$result = $db->sql_query("SELECT `id`,`author`,`description`,`images`,`name`,`downloads`,`upvotes`,`downvotes` FROM `archive_files` ".getSortSQL(true));
 	while($gamefile = $db->sql_fetchrow($result)){
 		$html .= getFileHTML($gamefile);
 	}
 	$db->sql_freeresult($result);
-	$html .= '</div>';
+	$html .= '';
 	$page->getPage('Recent Files',$html);
 }
 ?>
