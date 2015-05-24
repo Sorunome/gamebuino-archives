@@ -464,7 +464,7 @@ function getImagesArrayFromUpload($fid,$fileArray = false){
 function getFileHTML($gamefile){
 	$image = json_decode($gamefile['images'],true);
 	if(isset($image[0]) && $image[0] != ''){
-		$image = $image[0];
+		$image = 'uploads/screenshots/'.$image[0];
 	}else{
 		$image = '/forum/styles/metrolike/imageset/forum_read.gif';
 	}
@@ -478,7 +478,7 @@ function getFileHTML($gamefile){
 					<div class="downloads">'.$gamefile['downloads'].'</div>
 					<div class="rating">+'.$gamefile['upvotes'].'/-'.$gamefile['downvotes'].'</div>
 				</div>
-				<img src="uploads/screenshots/'.$image.'" alt="'.htmlentities($gamefile['name']).'">
+				<img src="'.$image.'" alt="'.htmlentities($gamefile['name']).'">
 			</a>
 		</div>
 	';
