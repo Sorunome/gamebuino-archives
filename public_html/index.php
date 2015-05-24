@@ -131,11 +131,11 @@ function getEditForm($gamefile = false){
 			Description:<br>
 			<textarea name="description">'.htmlentities($gamefile['description']).'</textarea>
 			<br>
-			Screenshots (all optional):<br>
-			Image 1 (main image):<input type="url" name="image0" value="'.htmlentities($images[0]).'"><br>
-			Image 2:<input type="url" name="image1" value="'.htmlentities($images[1]).'"><br>
-			Image 3:<input type="url" name="image2" value="'.htmlentities($images[2]).'"><br>
-			Image 4:<input type="url" name="image3" value="'.htmlentities($images[3]).'"><br>
+			Screenshots (all optional, only saved if changed):<br>
+			Image 1 (main image):<input type="file" name="image0"> | Delete old: <input type="checkbox" name="delimage0" value="true"><br>
+			Image 2:<input type="file" name="image1"> | Delete old: <input type="checkbox" name="delimage1" value="true"><br>
+			Image 3:<input type="file" name="image2"> | Delete old: <input type="checkbox" name="delimage2" value="true"><br>
+			Image 4:<input type="file" name="image3"> | Delete old: <input type="checkbox" name="delimage3" value="true"><br>
 			<input type="submit" value="'.($edit?'Save Edit':'Upload File').'">
 		</form>
 		<script type="text/javascript">
@@ -367,6 +367,53 @@ class Uploads {
 }
 $upload = new Uploads();
 
+class Screenshots {
+	private $uploadDir = 'uploads/screenshots/';
+	public $maxfilesize = 20971520;
+	public function delete($s){
+		if($s != ''){
+			@unlink($this->uploadDir.$s);
+		}
+	}
+	private function realUpload($tmpName,$fileName,$fid,$screenshotNum){
+		if(preg_match('#([ !\#$%\'()+-.\d;=@-\[\]-{}~]+)\.(\w+)$#',$fileName,$name)){
+			if (in_array(strtolower($name[2]), array('png', 'gif', 'jpg', 'jpeg', 'bmp', 'wbmp'))) {
+				$uploadName = $this->uploadDir.$fid.'.'.$screenshotNum.'.'.strtolower($name[2]);
+				if(move_uploaded_file($tmpName,$uploadName)){
+					if (filesize($uploadName) < $this->maxfilesize) {
+						if ($j = @imagecreatefromstring($h = file_get_contents($uploadName)) or substr($h, 0, 2) == 'BM') {
+							return strtolower($name[2]);
+						}else{
+							unlink($uploadName);
+						}
+					}else{
+						unlink($uploadName);
+					}
+				}
+			}
+		}
+		return false;
+	}
+	public function upload($fid,$i,$filename){
+		global $db;
+		$html = 'Error uploading file '.$i.'. Maybe it isn\'t an image or it is too large?<br>';
+		if(sizeof($_FILES)>0 && isset($_FILES['image'.$i]) && !is_array($_FILES['image'.$i]['name']) && $_FILES['image'.$i]['name'] !== ''){
+			$uploadFileName = $_FILES['image'.$i]['name'];
+			$db->sql_freeresult($db->sql_query(query_escape("UPDATE `archive_files` SET `screenshotNum`=`screenshotNum`+1 WHERE `id`=%d",$fid)));
+			$result = $db->sql_query(query_escape("SELECT `screenshotNum` FROM `archive_files` WHERE `id`=%d",$fid));
+			if($screenshotNumId = $db->sql_fetchrow($result)){
+				$screenshotNum = (int)$screenshotNumId['screenshotNum'];
+				if($extension = $this->realUpload($_FILES['image'.$i]['tmp_name'],$uploadFileName,$fid,$screenshotNum)){
+					$html = '';
+					$filename = $fid.'.'.$screenshotNum.'.'.$extension;
+				}
+			}
+			$db->sql_freeresult($result);
+		}
+		return array($filename,$html);
+	}
+}
+$screenshots = new Screenshots();
 
 function validateUpload(){
 	global $db;
@@ -386,13 +433,33 @@ function validateUpload(){
 	}
 	return false;
 }
-function getImagesArrayFromUpload(){
-	return array(
-		getUrl_safe(request_var('image0','')),
-		getUrl_safe(request_var('image1','')),
-		getUrl_safe(request_var('image2','')),
-		getUrl_safe(request_var('image3',''))
-	);
+function getImagesArrayFromUpload($fid,$fileArray = false){
+	global $screenshots;
+	if(!$fileArray){
+		$fileArray = array();
+	}
+	for($i = count($fileArray);$i < 4;$i++){
+		$fileArray[] = '';
+	}
+	$html = '';
+	
+	for($i = 0;$i < 4;$i++){
+		if(request_var('delimage'.$i,'') == 'true'){
+			if($fileArray[$i] != ''){
+				$screenshots->delete($fileArray[$i]);
+				$fileArray[$i] = '';
+			}
+		}
+		if(sizeof($_FILES)>0 && isset($_FILES['image'.$i]) && !is_array($_FILES['image'.$i]['name']) && $_FILES['image'.$i]['name'] !== ''){
+			$a = $screenshots->upload($fid,$i,$fileArray[$i]);
+			if($a[0] != $fileArray[$i]){
+				$screenshots->delete($fileArray[$i]);
+				$fileArray[$i] = $a[0];
+			}
+			$html .= $a[1];
+		}
+	}
+	return array($fileArray,$html);
 }
 function getFileHTML($gamefile){
 	$image = json_decode($gamefile['images'],true);
@@ -411,7 +478,7 @@ function getFileHTML($gamefile){
 					<div class="downloads">'.$gamefile['downloads'].'</div>
 					<div class="rating">+'.$gamefile['upvotes'].'/-'.$gamefile['downvotes'].'</div>
 				</div>
-				<img src="'.$image.'" alt="'.htmlentities($gamefile['name']).'">
+				<img src="uploads/screenshots/'.$image.'" alt="'.htmlentities($gamefile['name']).'">
 			</a>
 		</div>
 	';
@@ -466,7 +533,7 @@ if(request_var('file',false)){
 			$images = json_decode($gamefile['images'],true);
 			foreach($images as $i){
 				if($i != ''){
-					$html .= '<img src="'.$i.'" alt="'.htmlentities($gamefile['name']).'" class="fileDescImage">';
+					$html .= '<img src="uploads/screenshots/'.$i.'" alt="'.htmlentities($gamefile['name']).'" class="fileDescImage">';
 				}
 			}
 			if(class_exists('ZipArchive')){
@@ -624,14 +691,15 @@ if(request_var('file',false)){
 	$title = 'Error';
 	$html = '<b>Error: Permission Denied</b>';
 	if($isLoggedIn && (int)$fid == $fid){
-		$result = $db->sql_query(query_escape("SELECT `author` FROM `archive_files` WHERE `id`=%d",$fid));
+		$result = $db->sql_query(query_escape("SELECT `author`,`images` FROM `archive_files` WHERE `id`=%d",$fid));
 		if($gamefile = $db->sql_fetchrow($result)){
 			if($userid == $gamefile['author'] || $isAdmin){ // we may edit the file
 				if(validateUpload()){
+					$imagesarray = getImagesArrayFromUpload($fid,json_decode($gamefile['images'],true));
 					$db->sql_freeresult($db->sql_query(query_escape(
 						"UPDATE `archive_files` SET `name`='%s',`description`='%s',`forum_url`='%s',`repo_url`='%s',`version`=%d,`complexity`=%d,`category`='%s',`images`='%s' WHERE `id`=%d",
 							request_var('name','invalid'),request_var('description',''),getUrl_safe(request_var('forum_url','')),getUrl_safe(request_var('repo_url',''))
-							,request_var('version',0),request_var('complexity',0),request_var('category','invalid'),json_encode(getImagesArrayFromUpload())
+							,request_var('version',0),request_var('complexity',0),request_var('category','invalid'),json_encode($imagesarray[0])
 							,$fid)));
 					$html = '
 						Saved file information for <i>'.htmlentities(request_var('name','invalid')).'</i>!<br>';
@@ -642,6 +710,7 @@ if(request_var('file',false)){
 							$html .= 'Error uploading new zip, maybe file isn\'t a zip? Maybe it is too large?<br>';
 						}
 					}
+					$html .= $imagesarray[1];
 				}else{
 					$html = 'Error validating form, maybe you are missing required fields?<br>';
 				}
@@ -665,14 +734,17 @@ if(request_var('file',false)){
 	if($isLoggedIn){
 		if(validateUpload() && sizeof($_FILES)>0 && isset($_FILES['zip']) && !is_array($_FILES['zip']['name']) && $_FILES['zip']['name'] !== ''){
 			$db->sql_query(query_escape(
-						"INSERT INTO `archive_files` (`name`,`description`,`forum_url`,`repo_url`,`version`,`complexity`,`category`,`author`,`images`,`votes`,`filename`,`ts_updated`) VALUES ('%s','%s','%s','%s',%d,%d,'%s',%d,'%s','{}','',FROM_UNIXTIME('%s'))",
+						"INSERT INTO `archive_files` (`name`,`description`,`forum_url`,`repo_url`,`version`,`complexity`,`category`,`author`,`images`,`votes`,`filename`,`ts_updated`) VALUES ('%s','%s','%s','%s',%d,%d,'%s',%d,'','{}','',FROM_UNIXTIME('%s'))",
 							request_var('name','invalid'),request_var('description',''),getUrl_safe(request_var('forum_url','')),getUrl_safe(request_var('repo_url',''))
-							,request_var('version',0),request_var('complexity',0),request_var('category','invalid'),$userid,json_encode(getImagesArrayFromUpload()),time()
+							,request_var('version',0),request_var('complexity',0),request_var('category','invalid'),$userid,time()
 							));
 			
 			$fid = $db->sql_nextid();
 			if($upload->uploadZipFile($fid)){
-				$html = 'Uploaded new file <i>'.htmlentities(request_var('name','invalid')).'</i>!<br><a href="?file='.$fid.'">View file</a>';
+				$html = 'Uploaded new file <i>'.htmlentities(request_var('name','invalid')).'</i>!<br><a href="?file='.$fid.'">View file</a><br>';
+				$imagesarray = getImagesArrayFromUpload($fid);
+				$db->sql_query(query_escape("UPDATE `archive_files` SET `images`='%s' WHERE `id`=%d",json_encode($imagesarray[0]),$fid));
+				$html .= $imagesarray[1];
 			}else{
 				$db->sql_freeresult($db->sql_query(query_escape("DELETE FROM `archive_files` WHERE `id`=%d",$fid)));
 				$html = 'Error uploading zip, maybe file isn\'t a zip? Maybe it is too large?<br><a href="?newfile">Back</a>';
