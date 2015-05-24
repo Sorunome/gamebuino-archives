@@ -3,8 +3,8 @@
 	margin:0;
 	padding:0;
 }
-body > *:first-child {
-	margin-top:20px;
+body {
+	padding-top:20px;
 }
 h1,h2 {
 	text-align:center;
@@ -24,6 +24,11 @@ article {
 	padding:3px;
 	background-color:#BBB;
 	transition:background-color 0.2s ease 0s;
+}
+.filecont img.noimage {
+	width:280px;
+	background-image: url("https://www.getdigital.de/web/getdigital/gfx/products/__generated__resized/1100x1100/Aufkleber_Trollface.jpg");
+	background-size: 280px 198px;
 }
 .filecont *{
 	color:#FFF;
