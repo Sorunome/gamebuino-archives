@@ -193,7 +193,7 @@ function getFileSorter($url = '?',$limit = false){
 		'Downloads'
 	);
 	$html = '<div id="fileSorter">
-		<div class="sortgroup">';
+		<div class="buttongroup">';
 	foreach($sorts as $i => $s){
 		if($i == $cursort){
 			$html .= '<div class="button is-checked">'.$s.'</div>';
@@ -202,7 +202,7 @@ function getFileSorter($url = '?',$limit = false){
 		}
 	}
 	$html .= '	</div>
-		<div class="sortgroup">';
+		<div class="buttongroup">';
 	if($curdir == 0){
 		$html .= '<div class="button is-checked">▼</div>
 		<a class="button" href="'.$url.'&sort='.$cursort.'&direction=1'.($limit?'&limit='.$curlimit:'').'">▲</a>';
@@ -211,7 +211,7 @@ function getFileSorter($url = '?',$limit = false){
 		<div class="button is-checked">▲</div>';
 	}
 	if($limit){
-		$html .= '</div><div class="sortgroup"><div class="button is-checked" style="cursor:default;">Limit:</div>';
+		$html .= '</div><div class="buttongroup"><div class="button is-checked" style="cursor:default;">Limit:</div>';
 		$limits = array(10,20,50,100,200);
 		foreach($limits as $l){
 			if($l == $curlimit){
@@ -275,20 +275,20 @@ class Page {
 			</head>
 			<body>'.$globalnav.'
 			<h1><img src="/navbar/gamebuino_logo_160.png" alt="gamebuino"> Games</h1><br>
-			<ul id="headerNav" class="centercont">
-				<li><a href=".">Recent files</a></li>
-				<li><a href="?cat=1">Browse files</a></li>'.
+			<div class="centercont buttongroup">
+				<a class="button" href=".">Recent files</a>
+				<a class="button" href="?cat=1">Browse files</a>'.
 			($isLoggedIn?
-				'<li><a href="/forum/ucp.php?mode=logout">Logout [ '.$username.' ]</a></li>
-				<li><a href="?newfile">Upload file</a></li>'.
+				'<a class="button" href="/forum/ucp.php?mode=logout">Logout [ '.$username.' ]</a>
+				<a class="button" href="?newfile">Upload file</a>'.
 				($isAdmin?
-					'<li>Admin</li>'
+					'<span class="button">Admin</span>'
 				:'')
 			:
-				'<li><a href="/forum/ucp.php?mode=register">Register</a></li>
-				<li><a href="/forum/ucp.php?mode=login">Login</a></li>'
+				'<a class="button" href="/forum/ucp.php?mode=register">Register</a>
+				<a class="button" href="/forum/ucp.php?mode=login">Login</a>'
 			)
-			.'</ul>
+			.'</div>
 			<article>';
 	}
 	private function getFooter(){
@@ -402,16 +402,18 @@ function getFileHTML($gamefile){
 		$image = '/forum/styles/metrolike/imageset/forum_read.gif';
 	}
 	return '
-		<a class="filecont" href="?file='.$gamefile['id'].'">
+		<div class="filecont">
 			<div class="name">'.htmlentities($gamefile['name']).'</div>
-			<div class="author">'.htmlentities($gamefile['username']).'</div>
-			<div class="popup">
-				<div class="description">'.htmlentities(cutAtChar($gamefile['description'])).'</div>
-				<div class="downloads">'.$gamefile['downloads'].'</div>
-				<div class="rating">+'.$gamefile['upvotes'].'/-'.$gamefile['downvotes'].'</div>
-			</div>
-			<img src="'.$image.'" alt="'.htmlentities($gamefile['name']).'">
-		</a>
+			<div class="author"><a href="?author='.$gamefile['author'].'">'.htmlentities($gamefile['username']).'</a></div>
+			<a href="?file='.$gamefile['id'].'">
+				<div class="popup">
+					<div class="description">'.htmlentities(cutAtChar($gamefile['description'])).'</div>
+					<div class="downloads">'.$gamefile['downloads'].'</div>
+					<div class="rating">+'.$gamefile['upvotes'].'/-'.$gamefile['downvotes'].'</div>
+				</div>
+				<img src="'.$image.'" alt="'.htmlentities($gamefile['name']).'">
+			</a>
+		</div>
 	';
 }
 if(request_var('file',false)){

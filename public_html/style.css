@@ -6,26 +6,6 @@
 body > *:first-child {
 	margin-top:20px;
 }
-#headerNav {
-	display:flex;
-	list-style-type:none;
-	font-size:0.8em;
-	padding:0;
-}
-#headerNav li {
-	display:inline-block;
-	border: 1px solid black;
-	border-collapse:collapse;
-	padding:3px;
-	background-color:#F9D854;
-	cursor:pointer;
-	text-decoration:none;
-	color:black;
-}
-#headerNav a {
-	text-decoration:none;
-	color:black;
-}
 h1,h2 {
 	text-align:center;
 	text-transform:uppercase;
@@ -42,15 +22,20 @@ article {
 	height:198px;
 	margin:40px 0 0 0;
 	padding:3px;
+	background-color:#BBB;
+	transition:background-color 0.2s ease 0s;
+}
+.filecont *{
 	color:#FFF;
-	background:#BBB none repeat scroll 0% 0%;
+	margin:0;
+	padding:0;
 }
 .filecont:hover {
-	background:#444;
+	background-color:#444;
 }
 .filecont .name {
 	position:absolute;
-	top:-32px;
+	top:-29px;
 	left:3px;
 	font-size:30px;
 	text-transform:uppercase;
@@ -68,6 +53,10 @@ article {
 	text-transform:uppercase;
 	font-style:italic;
 	color:#BBB;
+}
+.filecont .author a {
+	color:#8564E5;
+	text-decoration:underline;
 }
 .filecont .popup {
 	padding:0 0 3px 3px;
@@ -246,8 +235,12 @@ footer {
 	cursor:pointer;
 	text-decoration:none;
 }
-.sortgroup .button {
+.buttongroup .button {
 	margin:0px 1px 1px 0px;
+}
+.buttongroup {
+	white-space-collapse: discard;
+	font-size:0;
 }
 .button:hover,
 .button.is-checked {
