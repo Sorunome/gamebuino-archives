@@ -396,7 +396,7 @@ class Screenshots {
 	}
 	public function upload($fid,$i,$filename){
 		global $db;
-		$html = 'Error uploading file '.$i.'. Maybe it isn\'t an image or it is too large?<br>';
+		$html = 'Error uploading file '.($i+1).'. Maybe it isn\'t an image or it is too large?<br>';
 		if(sizeof($_FILES)>0 && isset($_FILES['image'.$i]) && !is_array($_FILES['image'.$i]['name']) && $_FILES['image'.$i]['name'] !== ''){
 			$uploadFileName = $_FILES['image'.$i]['name'];
 			$db->sql_freeresult($db->sql_query(query_escape("UPDATE `archive_files` SET `screenshotNum`=`screenshotNum`+1 WHERE `id`=%d",$fid)));
