@@ -293,7 +293,7 @@ class Page {
 	}
 	private function getFooter(){
 		return '</article>
-			<footer>Archives software &copy;<a href="http://www.sorunome.de" target="_blank">Sorunome</a><br>Gamebuino &copy;Rodot</footer>
+			<footer>Archives software &copy;<a href="http://www.sorunome.de" target="_blank">Sorunome</a><br>Gamebuino &copy;Rodot<br>Something isn\'t working? <a href="https://github.com/Sorunome/gamebuino-archives/issues" target="_blank">Report it!</a></footer>
 			</body>
 			</html>';
 	}
