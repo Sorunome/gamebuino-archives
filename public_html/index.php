@@ -123,13 +123,13 @@ function getEditForm($gamefile = false){
 		$images[$i] = $images[$i]?$images[$i]:'';
 	}
 	$html = '<form id="fileeditform" action="?'.($edit?'save='.$gamefile['id']:'upload').'" method="post" enctype="multipart/form-data">
-			Name:<input type="text" name="name" value="'.htmlentities($gamefile['name']).'">'.
+			Name:<input type="text" name="name" value="'.$gamefile['name'].'">'.
 					getHelpHTML('The name of the file as it will be displayed').'<br>
 			'.($edit?'New zip-file (leave blank if it didn\'t change):':'Zip-file:').'<input type="file" name="zip">'.
 					getHelpHTML('The Zip-file containing the actual game, HEX (and INF) files').'<br>
-			Forum-Topic (optional):<input type="url" name="forum_url" value="'.htmlentities($gamefile['forum_url']).'">'.
+			Forum-Topic (optional):<input type="url" name="forum_url" value="'.$gamefile['forum_url'].'">'.
 					getHelpHTML('A link to the forum topic where discussion about this program/game occured').'<br>
-			Code-Repository (optional):<input type="url" name="repo_url" value="'.htmlentities($gamefile['repo_url']).'">'.
+			Code-Repository (optional):<input type="url" name="repo_url" value="'.$gamefile['repo_url'].'">'.
 					getHelpHTML('A link to a repository (for example <a href="https://github.com" target="_blank">Github</a>) where the code is hosted on').'<br>
 			Version:<select name="version" size="1">';
 	
@@ -164,7 +164,7 @@ function getEditForm($gamefile = false){
 						<tr>
 							<td>advanced</td><td>involves assembly, pointers, 3D, streaming from the SD card, multi-player, etc.</td>
 						</tr>
-					</table>').'<br><input type="hidden" name="category" value="'.htmlentities($gamefile['category']).'">
+					</table>').'<br><input type="hidden" name="category" value="'.$gamefile['category'].'">
 			Categories:'.
 					getHelpHTML('The categories your game should be in, you can add multiple').'<span id="categoriesContent">Please enable Javascript!</span>';
 	$catlist = getCategoryListDropdown();
@@ -172,7 +172,7 @@ function getEditForm($gamefile = false){
 	$html .= '<br>
 			Description:'.
 					getHelpHTML('A long description of your game').'<br>
-			<textarea name="description">'.htmlentities($gamefile['description']).'</textarea>
+			<textarea name="description">'.$gamefile['description'].'</textarea>
 			<br><br>
 			Screenshots (all optional'.($edit?', only saved if changed':'').'):'.
 					getHelpHTML('Nothing describes a game better than a screenshot! You can upload up to four, the first one will be the main screenshot.
@@ -567,15 +567,15 @@ function getFileHTML($gamefile){
 	}
 	return '
 		<div class="filecont">
-			<div class="name">'.htmlentities($gamefile['name']).'</div>
-			<div class="author"><a href="?author='.$gamefile['author'].'">'.htmlentities($gamefile['username']).'</a></div>
+			<div class="name">'.$gamefile['name'].'</div>
+			<div class="author"><a href="?author='.$gamefile['author'].'">'.$gamefile['username'].'</a></div>
 			<a href="?file='.$gamefile['id'].'">
 				<div class="popup">
-					<div class="description">'.htmlentities(cutAtChar($gamefile['description'])).'</div>
+					<div class="description">'.cutAtChar($gamefile['description']).'</div>
 					<div class="downloads">'.$gamefile['downloads'].'</div>
 					<div class="rating">+'.$gamefile['upvotes'].'/-'.$gamefile['downvotes'].'</div>
 				</div>
-				<img src="'.$image.'" alt="'.htmlentities($gamefile['name']).'" class="'.$class.'">
+				<img src="'.$image.'" alt="'.$gamefile['name'].'" class="'.$class.'">
 			</a>
 			<input class="fileDlCheckbox" type="checkbox" data-id="'.$gamefile['id'].'">
 		</div>
@@ -654,15 +654,15 @@ if(request_var('file',false)){
 					t1.`description`,UNIX_TIMESTAMP(t1.`ts_updated`) AS `ts_updated`,UNIX_TIMESTAMP(t1.`ts_added`) AS `ts_added`,t1.`images`,t1.`name`,t1.`downloads`,
 					t1.`upvotes`,t1.`downvotes`,t2.`username` FROM `archive_files` AS t1 INNER JOIN ".USERS_TABLE." AS t2 ON t1.`author` = t2.`user_id` WHERE t1.`id`=%d",$fid));
 		if($gamefile = $db->sql_fetchrow($result)){
-			$title = htmlentities($gamefile['name']);
+			$title = $gamefile['name'];
 			$html = '';
 			if($userid == $gamefile['author'] || $isAdmin){
 				$html = '<a href="?edit='.$fid.'" id="editfile">Edit</a>';
 			}
 			$cats = getCategoryList();
 			$html .= '<table id="fileDescription" cellspacing="0" cellpadding="0">
-				<tr><th colspan="2">'.htmlentities($gamefile['name']).' ( <a href="?dl='.$fid.'" download>Download</a> )</th></tr>
-				<tr><td>Author</td><td><a href="?author='.$gamefile['author'].'">'.htmlentities($gamefile['username']).'</a></td></tr>
+				<tr><th colspan="2">'.$gamefile['name'].' ( <a href="?dl='.$fid.'" download>Download</a> )</th></tr>
+				<tr><td>Author</td><td><a href="?author='.$gamefile['author'].'">'.$gamefile['username'].'</a></td></tr>
 				<tr><td>Downloads</td><td>'.$gamefile['downloads'].'</td></tr>
 				<tr><td>Rating</td><td>+'.$gamefile['upvotes'].'/-'.$gamefile['downvotes'].'&nbsp;&nbsp;&nbsp;'.
 				($isLoggedIn?
@@ -673,15 +673,15 @@ if(request_var('file',false)){
 				.'</td></tr>
 				<tr><td>Added</td><td>'.date($user->data['user_dateformat'],$gamefile['ts_added']).'</td></tr>
 				<tr><td>Last&nbsp;Updated</td><td>'.date($user->data['user_dateformat'],$gamefile['ts_updated']).'</td></tr>
-				<tr><td>Description</td><td>'.str_replace("\n",'<br>',htmlentities($gamefile['description'])).'</td></tr>
+				<tr><td>Description</td><td>'.str_replace("\n",'<br>',$gamefile['description']).'</td></tr>
 				<tr><td>Version</td><td>'.$versions[(int)$gamefile['version']].'</td></tr>
 				<tr><td>Complexity</td><td>'.$complexities[(int)$gamefile['complexity']].'</td></tr>
 				'.
 				($gamefile['forum_url']!=''?
-					'<tr><td>Forum-Topic</td><td><a href="'.htmlentities($gamefile['forum_url']).'">'.htmlentities($gamefile['forum_url']).'</a></td></tr>'
+					'<tr><td>Forum-Topic</td><td><a href="'.$gamefile['forum_url'].'" target="_blank">'.$gamefile['forum_url'].'</a></td></tr>'
 				:'').
 				($gamefile['repo_url']!=''?
-					'<tr><td>Code-Repository</td><td><a href="'.htmlentities($gamefile['repo_url']).'">'.htmlentities($gamefile['repo_url']).'</a></td></tr>'
+					'<tr><td>Code-Repository</td><td><a href="'.$gamefile['repo_url'].'" target="_blank">'.$gamefile['repo_url'].'</a></td></tr>'
 				:'').'<tr><td>Categories</td><td>';
 			foreach(explode('][',substr($gamefile['category'],1,strlen($gamefile['category'])-2)) as $c){
 				$html .= '<a href="?cat='.$c.'">'.$cats[$c].'</a> ';
@@ -695,7 +695,7 @@ if(request_var('file',false)){
 			$images = json_decode($gamefile['images'],true);
 			foreach($images as $i){
 				if($i != ''){
-					$html .= '<img src="uploads/screenshots/'.$i.'" alt="'.htmlentities($gamefile['name']).'" class="fileDescImage">';
+					$html .= '<img src="uploads/screenshots/'.$i.'" alt="'.$gamefile['name'].'" class="fileDescImage">';
 				}
 			}
 			$html .= '<br>';
@@ -935,11 +935,17 @@ if(request_var('file',false)){
 			if($userid == $gamefile['author'] || $isAdmin){ // we may edit the file
 				if(validateUpload()){
 					$imagesarray = getImagesArrayFromUpload($fid,json_decode($gamefile['images'],true));
-					$db->sql_freeresult($db->sql_query(query_escape(
-						"UPDATE `archive_files` SET `name`='%s',`description`='%s',`forum_url`='%s',`repo_url`='%s',`version`=%d,`complexity`=%d,`category`='%s',`images`='%s' WHERE `id`=%d",
-							request_var('name','invalid'),request_var('description',''),getUrl_safe(request_var('forum_url','')),getUrl_safe(request_var('repo_url',''))
-							,request_var('version',0),request_var('complexity',0),request_var('category','invalid'),json_encode($imagesarray[0])
-							,$fid)));
+					
+					$db->sql_freeresult($db->sql_query("UPDATE `archive_files` SET ".$db->sql_build_array('UPDATE',array(
+						'name' => request_var('name','invalid'),
+						'description' => request_var('description',''),
+						'forum_url' => getUrl_safe(request_var('forum_url','')),
+						'repo_url' => getUrl_safe(request_var('repo_url','')),
+						'version' => (int)request_var('version',0),
+						'complexity' => (int)request_var('complexity',0),
+						'category' => request_var('category','invalid'),
+						'images' => json_encode($imagesarray[0])
+					))." WHERE ".$db->sql_in_set('id',(int)$fid)));
 					$html = '
 						Saved file information for <i>'.htmlentities(request_var('name','invalid')).'</i>!<br>';
 					if(sizeof($_FILES)>0 && isset($_FILES['zip']) && !is_array($_FILES['zip']['name']) && $_FILES['zip']['name'] !== ''){
