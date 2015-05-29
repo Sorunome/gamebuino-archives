@@ -935,17 +935,11 @@ if(request_var('file',false)){
 			if($userid == $gamefile['author'] || $isAdmin){ // we may edit the file
 				if(validateUpload()){
 					$imagesarray = getImagesArrayFromUpload($fid,json_decode($gamefile['images'],true));
-					
-					$db->sql_freeresult($db->sql_query("UPDATE `archive_files` SET ".$db->sql_build_array('UPDATE',array(
-						'name' => request_var('name','invalid'),
-						'description' => request_var('description',''),
-						'forum_url' => getUrl_safe(request_var('forum_url','')),
-						'repo_url' => getUrl_safe(request_var('repo_url','')),
-						'version' => (int)request_var('version',0),
-						'complexity' => (int)request_var('complexity',0),
-						'category' => request_var('category','invalid'),
-						'images' => json_encode($imagesarray[0])
-					))." WHERE ".$db->sql_in_set('id',(int)$fid)));
+					$db->sql_freeresult($db->sql_query(query_escape(
+						"UPDATE `archive_files` SET `name`='%s',`description`='%s',`forum_url`='%s',`repo_url`='%s',`version`=%d,`complexity`=%d,`category`='%s',`images`='%s' WHERE `id`=%d",
+							request_var('name','invalid'),request_var('description',''),getUrl_safe(request_var('forum_url','')),getUrl_safe(request_var('repo_url',''))
+							,request_var('version',0),request_var('complexity',0),request_var('category','invalid'),json_encode($imagesarray[0])
+							,$fid)));
 					$html = '
 						Saved file information for <i>'.htmlentities(request_var('name','invalid')).'</i>!<br>';
 					if(sizeof($_FILES)>0 && isset($_FILES['zip']) && !is_array($_FILES['zip']['name']) && $_FILES['zip']['name'] !== ''){
