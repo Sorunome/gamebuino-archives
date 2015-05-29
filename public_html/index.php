@@ -174,12 +174,13 @@ function getEditForm($gamefile = false){
 					getHelpHTML('A long description of your game').'<br>
 			<textarea name="description">'.htmlentities($gamefile['description']).'</textarea>
 			<br><br>
-			Screenshots (all optional, only saved if changed):'.
+			Screenshots (all optional'.($edit?', only saved if changed':'').'):'.
 					getHelpHTML('Nothing describes a game better than a screenshot! You can upload up to four, the first one will be the main screenshot.').'<br>
 			Image 1 (main image):<input type="file" name="image0"> | Delete old: <input type="checkbox" name="delimage0" value="true"><br>
 			Image 2:<input type="file" name="image1"> | Delete old: <input type="checkbox" name="delimage1" value="true"><br>
 			Image 3:<input type="file" name="image2"> | Delete old: <input type="checkbox" name="delimage2" value="true"><br>
 			Image 4:<input type="file" name="image3"> | Delete old: <input type="checkbox" name="delimage3" value="true"><br>
+			<br>
 			<input type="submit" value="'.($edit?'Save Edit':'Upload File').'">
 		</form>
 		<script type="text/javascript">
@@ -303,6 +304,7 @@ function getFileSorter($url = '?',$limit = false){
 			$("#downloadselectedfiles").click(function(e){
 				if(DLIds.length < 1){
 					e.preventDefault();
+					alert("No files selected!");
 					return;
 				}
 				$(".stabilitywarning").remove();
