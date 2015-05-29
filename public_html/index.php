@@ -590,8 +590,10 @@ function getDlFiles($fid){
 		if(($s = $zip->getFromName('download.txt')) !== false){
 			$searchArray = explode("\n",$s);
 			for($i = 0;$i < $zip->numFiles;$i++){
-				if(in_array($name = $zip->getNameIndex($i),$searchArray)){
-					$a[] = $name;
+				$n = $zip->getNameIndex($i);
+				$allFiles[] = $n;
+				if(in_array($n,$searchArray)){
+					$a[] = $n;
 				}
 			}
 		}else{
@@ -602,11 +604,11 @@ function getDlFiles($fid){
 					$a[] = $name[0];
 				}
 			}
-			if(sizeof($a) == 0){
-				$a = $allFiles;
-			}
 		}
 		$zip->close();
+		if(sizeof($a) == 0){
+			$a = $allFiles;
+		}
 		return $a;
 	}else{
 		return false;
