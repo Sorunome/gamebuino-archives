@@ -100,6 +100,9 @@ function cutAtChar($string,$width = 150){
 	}
 	return $string;
 }
+function getHelpHTML($s){
+	return '<div class="help"><img src="help_icon.png"><div class="text">'.$s.'</div></div>';
+}
 function getEditForm($gamefile = false){
 	global $versionsDropdown,$complexitiesDropdown;
 	$edit = $gamefile!==false;
@@ -120,30 +123,59 @@ function getEditForm($gamefile = false){
 		$images[$i] = $images[$i]?$images[$i]:'';
 	}
 	$html = '<form id="fileeditform" action="?'.($edit?'save='.$gamefile['id']:'upload').'" method="post" enctype="multipart/form-data">
-			Name:<input type="text" name="name" value="'.htmlentities($gamefile['name']).'"><br>
-			'.($edit?'New zip-file (leave blank if it didn\'t change):':'Zip-file:').'<input type="file" name="zip"><br>
-			Forum-Topic (optional):<input type="url" name="forum_url" value="'.htmlentities($gamefile['forum_url']).'"><br>
-			Code-Repository (optional):<input type="url" name="repo_url" value="'.htmlentities($gamefile['repo_url']).'"><br>
+			Name:<input type="text" name="name" value="'.htmlentities($gamefile['name']).'">'.
+					getHelpHTML('The name of the file as it will be displayed').'<br>
+			'.($edit?'New zip-file (leave blank if it didn\'t change):':'Zip-file:').'<input type="file" name="zip">'.
+					getHelpHTML('The Zip-file containing the actual game, HEX (and INF) files').'<br>
+			Forum-Topic (optional):<input type="url" name="forum_url" value="'.htmlentities($gamefile['forum_url']).'">'.
+					getHelpHTML('A link to the forum topic where discussion about this program/game occured').'<br>
+			Code-Repository (optional):<input type="url" name="repo_url" value="'.htmlentities($gamefile['repo_url']).'">'.
+					getHelpHTML('A link to a repository (for example <a href="https://github.com" target="_blank">Github</a>) where the code is hosted on').'<br>
 			Version:<select name="version" size="1">';
 	
 	foreach($versionsDropdown as $i => $v){
 		$html .= '<option value="'.$i.'" '.($gamefile['version']==$i?'selected':'').'>'.$v.'</option>';
 	}
-	$html .= '</select><br>
+	$html .= '</select>'.
+					getHelpHTML('The version of the game<br><table>
+							<tr>
+								<td>alpha</td><td>game under development with the basic gameplay implemented</td>
+							</tr>
+							<tr>
+								<td>beta</td><td>a real game you can enjoy, but it still lacks a few features and a final polish</td>
+							</tr>
+							<tr>
+								<td>release</td><td>the game is finished, working and will no longer evolve</td>
+							</tr>
+						</table>').'<br>
 			Complexity:<select name="complexity" size="1">';
 	
 	foreach($complexitiesDropdown as $i => $c){
 		$html .= '<option value="'.$i.'" '.($gamefile['complexity']==$i?'selected':'').'>'.$c.'</option>';
 	}
-	$html .= '</select><br><input type="hidden" name="category" value="'.htmlentities($gamefile['category']).'">
-			Categories:<span id="categoriesContent">Please enable Javascript!</span>';
+	$html .= '</select>'.
+					getHelpHTML('How complex the code is<br><table>
+						<tr>
+							<td>basic</td><td>the code fits in one file <&nbsp;1500 lines and is easy to understand for a beginner</td>
+						</tr>
+						<tr>
+							<td>intermediate</td><td>program across several files, object oriented, PROGMEM, tile maps, etc.</td>
+						</tr>
+						<tr>
+							<td>advanced</td><td>involves assembly, pointers, 3D, streaming from the SD card, multi-player, etc.</td>
+						</tr>
+					</table>').'<br><input type="hidden" name="category" value="'.htmlentities($gamefile['category']).'">
+			Categories:'.
+					getHelpHTML('The categories your game should be in, you can add multiple').'<span id="categoriesContent">Please enable Javascript!</span>';
 	$catlist = getCategoryListDropdown();
 	$cats = explode('][',substr($gamefile['category'],1,strlen($gamefile['category'])-2));
 	$html .= '<br>
-			Description:<br>
+			Description:'.
+					getHelpHTML('A long description of your game').'<br>
 			<textarea name="description">'.htmlentities($gamefile['description']).'</textarea>
-			<br>
-			Screenshots (all optional, only saved if changed):<br>
+			<br><br>
+			Screenshots (all optional, only saved if changed):'.
+					getHelpHTML('Nothing describes a game better than a screenshot! You can upload up to four, the first one will be the main screenshot.').'<br>
 			Image 1 (main image):<input type="file" name="image0"> | Delete old: <input type="checkbox" name="delimage0" value="true"><br>
 			Image 2:<input type="file" name="image1"> | Delete old: <input type="checkbox" name="delimage1" value="true"><br>
 			Image 3:<input type="file" name="image2"> | Delete old: <input type="checkbox" name="delimage2" value="true"><br>
@@ -282,7 +314,7 @@ function getFileSorter($url = '?',$limit = false){
 								$elem.text("Stability errors may occur due to file renaming").addClass("warning");
 								break;
 							case 2:
-								$elem.text("Stability errors may occur as not all files could be re-named").addClass("error");
+								$elem.text("Stability errors will occur as not all files could be re-named").addClass("error");
 								break;
 						}
 						$("#selectedfilesgroup").append($elem);
@@ -631,7 +663,7 @@ if(request_var('file',false)){
 				.'</td></tr>
 				<tr><td>Added</td><td>'.date($user->data['user_dateformat'],$gamefile['ts_added']).'</td></tr>
 				<tr><td>Last&nbsp;Updated</td><td>'.date($user->data['user_dateformat'],$gamefile['ts_updated']).'</td></tr>
-				<tr><td>Description</td><td>'.htmlentities($gamefile['description']).'</td></tr>
+				<tr><td>Description</td><td>'.str_replace("\n",'<br>',htmlentities($gamefile['description'])).'</td></tr>
 				<tr><td>Version</td><td>'.$versions[(int)$gamefile['version']].'</td></tr>
 				<tr><td>Complexity</td><td>'.$complexities[(int)$gamefile['complexity']].'</td></tr>
 				'.

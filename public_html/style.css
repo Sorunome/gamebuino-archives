@@ -269,3 +269,40 @@ footer {
 .button.error {
 	background-color:red;
 }
+
+.help {
+	display:inline-block;
+	padding:0 5px;
+	cursor:help;
+}
+.help > img {
+	height:1.2em;
+}
+.help > .text {
+	visibility:hidden;
+	opacity:0;
+	position:absolute;
+	background-color:white;
+	padding:5px;
+	border:1px solid black;
+	border-radius:3px;
+	max-width:300px;
+	transition:opacity 0.4s ease 0s,visibility 0s ease 0.4s; /* we need to delay the visibilty:hidden; else there is no fade out, so that it isn't delayed when hovering*/
+															 /* over we need the re-declaration in :hover*/
+}
+.help:hover > .text {
+	visibility:visible;
+	opacity:1;
+	transition:opacity 0.4s ease 0s,visibility 0s ease 0s;
+}
+.help > .text td {
+	border-top:1px solid black;
+	border-left:1px solid black;
+	padding:3px;
+}
+.help > .text td:nth-child(1){
+	border-left-style:none;
+}
+.help > .text tr:nth-child(1) > td{
+	border-top-style:none;
+}
