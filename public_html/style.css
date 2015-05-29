@@ -11,6 +11,9 @@ h1,h2 {
 	text-transform:uppercase;
 	font-style:italic;
 }
+h1 > i,h2 > i{
+	font-style:normal;
+}
 article {
 	margin-top:20px;
 	font-size:0.9em;

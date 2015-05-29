@@ -137,7 +137,7 @@ function getEditForm($gamefile = false){
 		$html .= '<option value="'.$i.'" '.($gamefile['version']==$i?'selected':'').'>'.$v.'</option>';
 	}
 	$html .= '</select>'.
-					getHelpHTML('The version of the game<br><table>
+					getHelpHTML('The version of the game, defined as the following:<br><table>
 							<tr>
 								<td>alpha</td><td>game under development with the basic gameplay implemented</td>
 							</tr>
@@ -154,7 +154,7 @@ function getEditForm($gamefile = false){
 		$html .= '<option value="'.$i.'" '.($gamefile['complexity']==$i?'selected':'').'>'.$c.'</option>';
 	}
 	$html .= '</select>'.
-					getHelpHTML('How complex the code is<br><table>
+					getHelpHTML('How complex the code is, defined as the following:<br><table>
 						<tr>
 							<td>basic</td><td>the code fits in one file <&nbsp;1500 lines and is easy to understand for a beginner</td>
 						</tr>
@@ -175,12 +175,12 @@ function getEditForm($gamefile = false){
 			<textarea name="description">'.htmlentities($gamefile['description']).'</textarea>
 			<br><br>
 			Screenshots (all optional'.($edit?', only saved if changed':'').'):'.
-					getHelpHTML('Nothing describes a game better than a screenshot! You can upload up to four, the first one will be the main screenshot.').'<br>
-			Image 1 (main image):<input type="file" name="image0"> | Delete old: <input type="checkbox" name="delimage0" value="true"><br>
-			Image 2:<input type="file" name="image1"> | Delete old: <input type="checkbox" name="delimage1" value="true"><br>
-			Image 3:<input type="file" name="image2"> | Delete old: <input type="checkbox" name="delimage2" value="true"><br>
-			Image 4:<input type="file" name="image3"> | Delete old: <input type="checkbox" name="delimage3" value="true"><br>
-			<br>
+					getHelpHTML('Nothing describes a game better than a screenshot! You can upload up to four, the first one will be the main screenshot.
+								Animated GIFs are allowed.').'<br>';
+	for($i = 0;$i < 4;$i++){
+		$html .= 'Image '.($i+1).($i == 0?' (main image)':'').':<input type="file" name="image'.$i.'">'.($edit?' | Delete old: <input type="checkbox" name="delimage'.$i.'" value="true">':'').'<br>';
+	}
+	$html .= '<br>
 			<input type="submit" value="'.($edit?'Save Edit':'Upload File').'">
 		</form>
 		<script type="text/javascript">
@@ -586,6 +586,7 @@ function getDlFiles($fid){
 	$zip = new ZipArchive();
 	if($zip->open($upload->getZipName($fid)) !== false){
 		$a = array();
+		$allFiles = array();
 		if(($s = $zip->getFromName('download.txt')) !== false){
 			$searchArray = explode("\n",$s);
 			for($i = 0;$i < $zip->numFiles;$i++){
@@ -595,9 +596,14 @@ function getDlFiles($fid){
 			}
 		}else{
 			for($i = 0;$i < $zip->numFiles;$i++){
-				if(preg_match('@^([^/]+\.(HEX|INF))$@i',$zip->getNameIndex($i),$name)){
+				$n = $zip->getNameIndex($i);
+				$allFiles[] = $n;
+				if(preg_match('@^([^/]+\.(HEX|INF))$@i',$n,$name)){
 					$a[] = $name[0];
 				}
+			}
+			if(sizeof($a) == 0){
+				$a = $allFiles;
 			}
 		}
 		$zip->close();
@@ -911,7 +917,7 @@ if(request_var('file',false)){
 		$result = $db->sql_query(query_escape("SELECT `id`,`author`,`name`,`description`,`version`,`complexity`,`forum_url`,`repo_url`,`category`,`images` FROM `archive_files` WHERE `id`=%d",$fid));
 		if($gamefile = $db->sql_fetchrow($result)){
 			if($userid == $gamefile['author'] || $isAdmin){ // we may edit the file
-				$html = '<a href="?file='.$fid.'">Back</a><br><br>'.getEditForm($gamefile);
+				$html = '<h1>Editing file <i>'.htmlspecialchars($gamefile['name']).'</i></h1><a href="?file='.$fid.'">Back</a><br><br>'.getEditForm($gamefile);
 			}
 		}
 		$db->sql_freeresult($result);
