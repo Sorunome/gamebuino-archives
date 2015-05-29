@@ -111,6 +111,11 @@ article {
 	image-rendering:crisp-edges;
 	-ms-interpolation-mode: nearest-neighbor;
 }
+.fileDlCheckbox {
+	position:absolute;
+	left:2px;
+	bottom:2px;
+}
 
 article,
 footer,
@@ -144,7 +149,8 @@ article {
 	background-color:#444;
 }
 #authorDescription th a,
-#fileDescription th a {
+#fileDescription th a,
+#zipcontentsheader a {
 	color:#99ADFE;
 }
 #authorDescription td:nth-child(1),
@@ -214,9 +220,13 @@ textarea {
 	text-transform:uppercase;
 	font-style:italic;
 	background-color:#444;
+	font-weight:bold;
 }
 .zipcontentsitem:nth-child(odd){
 	background-color:#BBB;
+}
+.zipcontentsitem.dlfile {
+	font-weight:bold;
 }
 
 footer {
@@ -252,4 +262,10 @@ footer {
 	color:#FFF;
 	text-shadow:0px 1px #000;
 	background-color:#444;
+}
+.button.warning {
+	background-color:orange;
+}
+.button.error {
+	background-color:red;
 }

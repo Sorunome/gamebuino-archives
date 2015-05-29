@@ -36,7 +36,19 @@ $complexitiesDropdown = array(
 	'Intermediate',
 	'Advanced'
 );
-
+function generateRandomString($length = 20) {
+	$characters = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+	$charactersLength = strlen($characters);
+	$randomString = '';
+	for($i = 0; $i < $length; $i++){
+		$randomString .= $characters[rand(0, $charactersLength - 1)];
+	}
+	return $randomString;
+}
+function panic(){
+	header('Location:?error');
+	die();
+}
 function validate_url($url){
 	$url = trim($url);
 	return ((strpos($url, "http://") === 0 || strpos($url, "https://") === 0) &&
@@ -222,7 +234,63 @@ function getFileSorter($url = '?',$limit = false){
 		}
 	}
 	$html .= '</div>
-	</div>';
+		<div class="buttongroup" id="selectedfilesgroup">
+			<div class="button" id="selectallfiles">Select all</div>
+			<div class="button" id="deselectallfiles">Deselect all</div>
+			<a class="button" id="downloadselectedfiles" download>Download selected</a>
+		</div>
+	</div>
+	<script type="text/javascript">
+		$(document).ready(function(){
+			var DLIds = [],
+				updateDlUrl = function(){
+					$("#downloadselectedfiles").attr("href","?dlmult="+DLIds.join(","));
+				};
+			$(".fileDlCheckbox").prop("checked",false).change(function(){
+				var fid = this.dataset.id;
+				if(this.checked){
+					DLIds.push(fid);
+				}else{
+					DLIds = $.grep(DLIds,function(v){
+						return v != fid;
+					});
+				}
+				updateDlUrl();
+			});
+			$("#selectallfiles").click(function(){
+				DLIds = $(".fileDlCheckbox").prop("checked",true).map(function(){
+					return this.dataset.id;
+				}).get();
+				updateDlUrl();
+			});
+			$("#deselectallfiles").click(function(){
+				$(".fileDlCheckbox").prop("checked",false);
+				DLIds = [];
+				updateDlUrl();
+			});
+			$("#downloadselectedfiles").click(function(e){
+				if(DLIds.length < 1){
+					e.preventDefault();
+					return;
+				}
+				$(".stabilitywarning").remove();
+				$.getJSON(this.href+"&info",function(data){
+					if(data.stability > 0){
+						var $elem = $("<div>").addClass("button stabilitywarning").text("Stability errors");
+						switch(data.stability){
+							case 1:
+								$elem.text("Stability errors may occur due to file renaming").addClass("warning");
+								break;
+							case 2:
+								$elem.text("Stability errors may occur as not all files could be re-named").addClass("error");
+								break;
+						}
+						$("#selectedfilesgroup").append($elem);
+					}
+				})
+			})
+		});
+	</script>';
 	return $html;
 }
 function getFilesSQL($where = '',$limit = false){
@@ -293,7 +361,7 @@ class Page {
 	}
 	private function getFooter(){
 		return '</article>
-			<footer>Archives software &copy;<a href="http://www.sorunome.de" target="_blank">Sorunome</a><br>Gamebuino &copy;Rodot<br>Something isn\'t working? <a href="https://github.com/Sorunome/gamebuino-archives/issues" target="_blank">Report it!</a></footer>
+			<footer>Archives software &copy;<a href="http://www.sorunome.de" target="_blank">Sorunome</a><br>Gamebuino &copy;Rodot<br>Something isn\'t working? <a href="https://github.com/Sorunome/gamebuino-archives/issues" target="_blank">Report the issue!</a></footer>
 			</body>
 			</html>';
 	}
@@ -324,23 +392,16 @@ class Uploads {
 					fclose($fh);
 					if(strpos($blob,'PK') === 0){ // this is a zip file!
 						if(filesize($name) < $this->maxfilesize){
-							$valid = false;
-							if(class_exists('ZipArchive')){ // we can do more checks!
-								$zip = new ZipArchive();
-								if($zip->open($name)){
-									if($zip->numFiles > 0){
-										$valid = true;
-									}
+							$zip = new ZipArchive();
+							if($zip->open($name)){
+								if($zip->numFiles > 0){
 									$zip->close();
+									if(file_exists($oldName)){
+										unlink($oldName);
+									}
+									return true;
 								}
-							}else{
-								$valid = true;
-							}
-							if($valid){
-								if(file_exists($oldName)){
-									unlink($oldName);
-								}
-								return true;
+								$zip->close();
 							}
 						}
 					}
@@ -482,8 +543,65 @@ function getFileHTML($gamefile){
 				</div>
 				<img src="'.$image.'" alt="'.htmlentities($gamefile['name']).'" class="'.$class.'">
 			</a>
+			<input class="fileDlCheckbox" type="checkbox" data-id="'.$gamefile['id'].'">
 		</div>
 	';
+}
+function getDlFiles($fid){
+	global $upload;
+	$zip = new ZipArchive();
+	if($zip->open($upload->getZipName($fid)) !== false){
+		$a = array();
+		if(($s = $zip->getFromName('download.txt')) !== false){
+			$searchArray = explode("\n",$s);
+			for($i = 0;$i < $zip->numFiles;$i++){
+				if(in_array($name = $zip->getNameIndex($i),$searchArray)){
+					$a[] = $name;
+				}
+			}
+		}else{
+			for($i = 0;$i < $zip->numFiles;$i++){
+				if(preg_match('@^([^/]+\.(HEX|INF))$@i',$zip->getNameIndex($i),$name)){
+					$a[] = $name[0];
+				}
+			}
+		}
+		$zip->close();
+		return $a;
+	}else{
+		return false;
+	}
+}
+function getDlFilesMult($fids){
+	$rename = 0;
+	$curFilenames = array();
+	$dlChangeNames = array();
+	foreach($fids as $fid){
+		$fdl = getDlFiles($fid) or panic();
+		$dlChangeNames[$fid] = array();
+		foreach($fdl as $f){
+			$nf = $f;
+			$dofile = true;
+			if(in_array($f,$curFilenames)){
+				$dofile = false;
+				if($rename < 1){
+					$rename = 1;
+				}
+				if(preg_match('#([ !\#$%\'()+-.\d;=@-\[\]-{}~]+)\.(\w+)$#',$f,$name)){
+					$dofile = true;
+					for ($i = 0; in_array($name[0],$curFilenames); $name[0] = $name[1] . '-' . (++$i) . '.' . $name[2]);
+					$nf = $name[0];
+				}elseif($rename < 2){
+					$rename = 2;
+				}
+			}
+			if($dofile){
+				$curFilenames[] = $nf;
+				$dlChangeNames[$fid][$f] = $nf;
+			}
+		}
+	}
+	return array($rename,$dlChangeNames);
 }
 if(request_var('file',false)){
 	$fid = request_var('file','invalid');
@@ -501,7 +619,7 @@ if(request_var('file',false)){
 			}
 			$cats = getCategoryList();
 			$html .= '<table id="fileDescription" cellspacing="0" cellpadding="0">
-				<tr><th colspan="2">'.htmlentities($gamefile['name']).' ( <a href="?dl='.$fid.'">Download</a> )</th></tr>
+				<tr><th colspan="2">'.htmlentities($gamefile['name']).' ( <a href="?dl='.$fid.'" download>Download</a> )</th></tr>
 				<tr><td>Author</td><td><a href="?author='.$gamefile['author'].'">'.htmlentities($gamefile['username']).'</a></td></tr>
 				<tr><td>Downloads</td><td>'.$gamefile['downloads'].'</td></tr>
 				<tr><td>Rating</td><td>+'.$gamefile['upvotes'].'/-'.$gamefile['downvotes'].'&nbsp;&nbsp;&nbsp;'.
@@ -538,20 +656,20 @@ if(request_var('file',false)){
 					$html .= '<img src="uploads/screenshots/'.$i.'" alt="'.htmlentities($gamefile['name']).'" class="fileDescImage">';
 				}
 			}
-			if(class_exists('ZipArchive')){
-				$html .= '<br>';
-				$zip = new ZipArchive();
-				if($zip->open($upload->getZipName($fid))){
-					$html .= '<div id="zipcontentswrap"><div id="zipcontents">
-						<div id="zipcontentsheader">Archive contents</div>';
-					for($i = 0;$i < $zip->numFiles;$i++){
-						$html .= '<div class="zipcontentsitem">'.htmlentities($zip->getNameIndex($i)).'</div>';
-					}
-					$html .= '</div></div>';
-					$zip->close();
-				}else{
-					$html .= '<b>Couldn\'t open zip archive!</b>';
+			$html .= '<br>';
+			$dlFiles = getDlFiles($fid) or panic();
+			$zip = new ZipArchive();
+			if($zip->open($upload->getZipName($fid))){
+				$html .= '<div id="zipcontentswrap"><div id="zipcontents">
+					<div id="zipcontentsheader">Archive contents ( <a href="?dl='.$fid.'&all" download>Download all</a> )</div>';
+				for($i = 0;$i < $zip->numFiles;$i++){
+					$name = $zip->getNameIndex($i);
+					$html .= '<div class="zipcontentsitem'.(in_array($name,$dlFiles)?' dlfile':'').'">'.htmlentities($name).'</div>';
 				}
+				$html .= '</div></div>';
+				$zip->close();
+			}else{
+				$html .= '<b>Couldn\'t open zip archive!</b>';
 			}
 		}
 		$db->sql_freeresult($result);
@@ -564,14 +682,91 @@ if(request_var('file',false)){
 		if($gamefile = $db->sql_fetchrow($result)){
 			header('Content-Type: application/zip');
 			header('Content-Disposition: attachment; filename='.$gamefile['filename']);
-			$realzip = $upload->getZipName($fid);
+			if(isset($_GET['all'])){
+				$realzip = $upload->getZipName($fid);
+			}else{
+				$dlFiles = getDlFiles($fid) or panic();
+				$newzip = new ZipArchive();
+				$oldzip = new ZipArchive();
+				$realzip = 'tmp/'.generateRandomString().time().'.zip';
+				if($oldzip->open($upload->getZipName($fid))){
+					if($newzip->open($realzip, ZIPARCHIVE::CREATE)){
+						foreach($dlFiles as $f){
+							$newzip->addFromString($f,$oldzip->getFromName($f));
+						}
+						$oldzip->close();
+						$newzip->close();
+					}else{
+						panic();
+					}
+				}else{
+					panic();
+				}
+			}
 			header('Content-length: '.filesize($realzip));
 			header('Proagma: no-cache');
 			header('Expires: 0');
 			readfile($realzip);
 			$db->sql_freeresult($db->sql_query(query_escape("UPDATE `archive_files` SET `downloads`=`downloads`+1 WHERE `id`=%d",$fid)));
+			if(!isset($_GET['all'])){ // we only had a temp file, delete it
+				unlink($realzip);
+			}
+		}else{
+			panic();
 		}
 		$db->sql_freeresult($result);
+	}else{
+		panic();
+	}
+}elseif(request_var('dlmult',false)){
+	$s = request_var('dlmult','invalid');
+	if(preg_match('/^[0-9]+(|,[0-9]+)+$/',$s)){
+		$preFids = explode(',',$s); // we don't know yet if they actually exist
+		$fids = array();
+		foreach($preFids as $fid){
+			// no need to check if $fid is and int as that is implied with the regex
+			$result = $db->sql_query(query_escape("SELECT `filename` FROM `archive_files` WHERE `id`=%d",$fid));
+			if($gamefile = $db->sql_fetchrow($result)){
+				$fids[] = $fid;
+				if(!isset($_GET['info'])){
+					$db->sql_freeresult($db->sql_query(query_escape("UPDATE `archive_files` SET `downloads`=`downloads`+1 WHERE `id`=%d",$fid)));
+				}
+			}
+			$db->sql_freeresult($result);
+		}
+		$dlFiles = getDlFilesMult($fids);
+		if(isset($_GET['info'])){
+			header('Content-Type:application/json');
+			echo json_encode(array('stability' => $dlFiles[0]));
+		}else{
+			header('Content-Type: application/zip');
+			header('Content-Disposition: attachment; filename=gamebuino_games.zip');
+			$newzip = new ZipArchive();
+			$oldzip = new ZipArchive();
+			$realzip = 'tmp/'.generateRandomString().time().'.zip';
+			if($newzip->open($realzip, ZIPARCHIVE::CREATE)){
+				foreach($dlFiles[1] as $fid => $files){
+					if($oldzip->open($upload->getZipName($fid))){
+						foreach($files as $oldf => $newf){
+							$newzip->addFromString($newf,$oldzip->getFromName($oldf));
+						}
+						$oldzip->close();
+					}else{
+						panic();
+					}
+				}
+				$newzip->close();
+			}else{
+				panic();
+			}
+			header('Content-length: '.filesize($realzip));
+			header('Proagma: no-cache');
+			header('Expires: 0');
+			readfile($realzip);
+			unlink($realzip);
+		}
+	}else{
+		panic();
 	}
 }elseif(request_var('author',false)){
 	$aid = request_var('author','invalid');
@@ -756,6 +951,8 @@ if(request_var('file',false)){
 		}
 	}
 	$page->getPage($title,$html);
+}elseif(isset($_GET['error'])){
+	$page->getPage('Error','Something went wrong! Be sure to <a href="https://github.com/Sorunome/gamebuino-archives/issues" target="_blank">report the issue</a>!');
 }else{
 	$html = '<h2>Gamebuino file archive Files</h2>'.getFileSorter('?',true);
 	$result = $db->sql_query(getFilesSQL('',true));
