@@ -652,7 +652,7 @@ if(request_var('file',false)){
 	if((int)$fid == $fid){
 		$result = $db->sql_query(query_escape("SELECT t1.`filename`,t1.`category`,t1.`forum_url`,t1.`repo_url`,t1.`version`,t1.`complexity`,t1.`id`,t1.`author`,
 					t1.`description`,UNIX_TIMESTAMP(t1.`ts_updated`) AS `ts_updated`,UNIX_TIMESTAMP(t1.`ts_added`) AS `ts_added`,t1.`images`,t1.`name`,t1.`downloads`,
-					t1.`upvotes`,t1.`downvotes`,t2.`username` FROM `archive_files` AS t1 INNER JOIN ".USERS_TABLE." AS t2 ON t1.`author` = t2.`user_id` WHERE t1.`id`=%d",$fid));
+					t1.`upvotes`,t1.`downvotes`,t2.`username`,t1.`hits` FROM `archive_files` AS t1 INNER JOIN ".USERS_TABLE." AS t2 ON t1.`author` = t2.`user_id` WHERE t1.`id`=%d",$fid));
 		if($gamefile = $db->sql_fetchrow($result)){
 			$title = $gamefile['name'];
 			$html = '';
@@ -663,6 +663,7 @@ if(request_var('file',false)){
 			$html .= '<table id="fileDescription" cellspacing="0" cellpadding="0">
 				<tr><th colspan="2">'.$gamefile['name'].' ( <a href="?dl='.$fid.'" download>Download</a> )</th></tr>
 				<tr><td>Author</td><td><a href="?author='.$gamefile['author'].'">'.$gamefile['username'].'</a></td></tr>
+				<tr><td>Hits</td><td>'.$gamefile['hits'].'</td></tr>
 				<tr><td>Downloads</td><td>'.$gamefile['downloads'].'</td></tr>
 				<tr><td>Rating</td><td>+'.$gamefile['upvotes'].'/-'.$gamefile['downvotes'].'&nbsp;&nbsp;&nbsp;'.
 				($isLoggedIn?
@@ -713,6 +714,7 @@ if(request_var('file',false)){
 			}else{
 				$html .= '<b>Couldn\'t open zip archive!</b>';
 			}
+			$db->sql_freeresult($db->sql_query(query_escape("UPDATE `archive_files` SET `hits`=`hits`+1 WHERE `id`=%d",$fid)));
 		}
 		$db->sql_freeresult($result);
 	}
