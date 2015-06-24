@@ -190,7 +190,7 @@ function getEditForm($gamefile = false){
 			<input type="submit" value="'.($edit?'Save Edit':'Upload File').'">
 		</form>
 		<script type="text/javascript">
-			(function(){
+			$(function(){
 				var catlist = '.json_encode($catlist).',
 					cats = '.json_encode($cats).',
 					makeCatList = function(v){
@@ -227,7 +227,7 @@ function getEditForm($gamefile = false){
 					
 					// no e.preventDefault() as we still want to send it
 				});
-			})();
+			});
 		</script>';
 	return $html;
 }
@@ -235,6 +235,11 @@ function getFileSorter($url = '?',$limit = false){
 	$cursort = (int)request_var('sort',0);
 	$curdir = (int)request_var('direction',0);
 	$curlimit = (int)request_var('limit',10);
+	$tags = request_var('tags','[0]');
+	if(!preg_match("/^(\[\d+\])+$/",$tags)){
+		$tags = '[0]';
+	}
+	// $tags is now safe html due to the regex
 	$sorts = array(
 		'Date updated',
 		'Date added',
@@ -247,30 +252,79 @@ function getFileSorter($url = '?',$limit = false){
 		<div class="buttongroup">';
 	foreach($sorts as $i => $s){
 		if($i == $cursort){
-			$html .= '<div class="button is-checked">'.$s.'</div>';
+			$html .= '<div class="button is-checked changestuff sortorder" data-num="'.$i.'">'.$s.'</div>';
 		}else{
-			$html .= '<a class="button" href="'.$url.'&sort='.$i.'&direction='.$curdir.($limit?'&limit='.$curlimit:'').'">'.$s.'</a>';
+			$html .= '<a class="button changestuff sortorder" data-num="'.$i.'" href="'.$url.'&sort='.$i.'&direction='.$curdir.($limit?'&limit='.$curlimit:'').'&tags='.$tags.'">'.
+																					$s.'</a>';
 		}
 	}
 	$html .= '	</div>
 		<div class="buttongroup">';
 	if($curdir == 0){
-		$html .= '<div class="button is-checked">▼</div>
-		<a class="button" href="'.$url.'&sort='.$cursort.'&direction=1'.($limit?'&limit='.$curlimit:'').'">▲</a>';
+		$html .= '<div class="button is-checked changestuff sortdir" data-num="0">▼</div>
+		<a class="button changestuff sortdir" data-num="1" href="'.$url.'&sort='.$cursort.'&direction=1'.($limit?'&limit='.$curlimit:'').'&tags='.$tags.'">▲</a>';
 	}else{
-		$html .= '<a class="button" href="'.$url.'&sort='.$cursort.'&direction=0'.($limit?'&limit='.$curlimit:'').'">▼</a>
-		<div class="button is-checked">▲</div>';
+		$html .= '<a class="button changestuff sortdir" data-num="0" href="'.$url.'&sort='.$cursort.'&direction=0'.($limit?'&limit='.$curlimit:'').'&tags='.$tags.'">▼</a>
+		<div class="button is-checked changestuff sortdir" data-num="1">▲</div>';
 	}
 	if($limit){
 		$html .= '</div><div class="buttongroup"><div class="button is-checked" style="cursor:default;">Limit:</div>';
 		$limits = array(10,20,50,100,200);
 		foreach($limits as $l){
 			if($l == $curlimit){
-				$html .= '<div class="button is-checked">'.$l.'</div>';
+				$html .= '<div class="button is-checked changestuff sortlimit" data-num="'.$l.'">'.$l.'</div>';
 			}else{
-				$html .= '<a class="button" href="'.$url.'&sort='.$cursort.'&direction='.$curdir.'&limit='.$l.'">'.$l.'</a>';
+				$html .= '<a class="button changestuff sortlimit" data-num="'.$l.'" href="'.$url.'&sort='.$cursort.'&direction='.$curdir.'&limit='.$l.'&tags='.$tags.'">'.$l.'</a>';
 			}
 		}
+		if($curlimit == -1){
+			$html .= '<div class="button is-checked changestuff sortlimit" data-num="-1">All</div>';
+		}else{
+			$html .= '<a class="button changestuff sortlimit" data-num="-1" href="'.$url.'&sort='.$cursort.'&direction='.$curdir.'&limit=-1&tags='.$tags.'">All</a>';
+		}
+	}else{
+		$curlimit = -1;
+	}
+	if(!FOLDERS){
+		$html .= '</div><div class="buttongroup"><div class="button is-checked" style="cursor:default;">Tags:</div>
+			<span id="taglistpicker"><div class="button error">Please enable Javascript</div></span>
+			<input type="hidden" id="taglist" value="'.$tags.'">';
+		$taglist = getCategoryListDropdown();
+		$tags = explode('][',substr($tags,1,strlen($tags)-2));
+		$html .= '
+			<script type="text/javascript">
+				$(function(){
+					var taglist = '.json_encode(array('_0' => 'All') + $taglist).',
+						tags = '.json_encode($tags).',
+						updateTagList = function(){
+							var tagIdsMix = $(".tagDropdown select").map(function(){return this.value;}),
+								tagIds = [];
+							$.each(tagIdsMix,function(i,el){
+								if($.inArray("["+el+"]",tagIds) === -1){
+									tagIds.push("["+el+"]");
+								}
+							});
+							$("#taglist").val(tagIds.join("")).trigger("change");
+						},
+						makeTagList = function(v){
+							return $("<div>").addClass("button tagDropdown").append(
+								$("<select>").attr("size","1").append(
+									$.map(taglist,function(c,i){
+										i = i.substr(1);
+										return $("<option>").text(c).attr(((i==v)?"selected":"false"),"selected").val(i);
+									})
+								).change(function(){
+									updateTagList();
+								})
+							);
+						};
+					$("#taglistpicker").empty().append(
+						$.map(tags,function(v){
+							return makeTagList(v);
+						})
+					);
+				});
+			</script>';
 	}
 	$html .= '</div>
 		<div class="buttongroup" id="selectedfilesgroup">
@@ -280,7 +334,7 @@ function getFileSorter($url = '?',$limit = false){
 		</div>
 	</div>
 	<script type="text/javascript">
-		$(document).ready(function(){
+		$(function(){
 			var DLIds = [],
 				updateDlUrl = function(){
 					$("#downloadselectedfiles").attr("href","?dlmult="+DLIds.join(","));
@@ -330,6 +384,48 @@ function getFileSorter($url = '?',$limit = false){
 				})
 			})
 		});
+		$(function(){
+			var cursort = '.$cursort.',
+				curdir = '.$curdir.',
+				curlimit = '.$curlimit.',
+				curtags = "[0]",
+				getNewFiles = function(){
+					var url = "'.$url.'&getFiles&sort="+cursort+"&direction="+curdir+"&limit="+curlimit;
+					if(curtags){
+						url += "&tags="+curtags;
+					}
+					$.get(url).done(function(data){
+						$("#files").empty().append(data);
+					});
+				};
+			$(".changestuff").click(function(e){
+				e.preventDefault();
+				if($(this).hasClass("is-checked")){
+					return;
+				}
+				var num = $(this).attr("data-num");
+				if(!num && num!==0){
+					return;
+				}
+				if($(this).hasClass("sortorder")){
+					cursort = num;
+					$(".sortorder").removeClass("is-checked");
+				}else if($(this).hasClass("sortdir")){
+					curdir = num;
+					$(".sortdir").removeClass("is-checked");
+				}else if($(this).hasClass("sortlimit")){
+					curlimit = num;
+					$(".sortlimit").removeClass("is-checked");
+				}
+				$(this).addClass("is-checked");
+				getNewFiles();
+			});
+			$("#taglist").change(function(){
+				curtags = $(this).val();
+				getNewFiles();
+			});
+			curtags = $("#taglist").val();
+		});
 	</script>';
 	return $html;
 }
@@ -355,14 +451,16 @@ function getFilesSQL($where = '',$limit = false){
 		'ORDER BY t1.`downloads`'
 	);
 	$dirs = array('DESC','ASC');
-	if(isset($_GET['tags']) && preg_match("/^(\[\d+\])+$/",$cats = $_GET['tags'])){
+	if(!FOLDERS && isset($_GET['tags']) && preg_match("/^(\[\d+\])+$/",$cats = $_GET['tags'])){
 		$addWhere = '';
 		foreach(explode('][',substr($cats,1,strlen($cats)-2)) as $c){
 			// we already validated with the regex that $c can only be digits so it is safe to use without escaping
-			if($addWhere !== ''){
-				$addWhere .= ' OR ';
+			if($c != 0){
+				if($addWhere !== ''){
+					$addWhere .= ' OR ';
+				}
+				$addWhere .= "t1.`category` LIKE '%[".$c."]%'";
 			}
-			$addWhere .= "t1.`category` LIKE '%[".$c."]%'";
 		}
 		if($where === ''){
 			$where = $addWhere;
@@ -376,10 +474,12 @@ function getFilesSQL($where = '',$limit = false){
 	$s .= $where.' '.$sortcolumns[$cursort].' '.$dirs[$curdir];
 	if($limit){
 		$curlimit = (int)request_var('limit',10);
-		if($curlimit < 1 || $curlimit > 200){
-			$curlimit = 1;
+		if($curlimit != -1){
+			if($curlimit < 1){
+				$curlimit = 1;
+			}
+			$s .= ' LIMIT '.$curlimit;
 		}
-		$s .= ' LIMIT '.$curlimit;
 	}
 	return $s;
 }
@@ -862,14 +962,22 @@ if(request_var('file',false)){
 				<tr><td>Number&nbsp;of&nbsp;files</td><td>'.$files.'</td></tr>
 			</table><br>';
 			$first = true;
-			$result = $db->sql_query(query_escape(getFilesSQL("t1.`author`=%d"),$aid));
+			$result = $db->sql_query(getFilesSQL("t1.`author`=".(int)$aid));
+			
+			$fileHTML = '';
 			while($gamefile = $db->sql_fetchrow($result)){
 				if($first){
 					$html .= getFileSorter('?author='.$aid,false);
 					$first = false;
 				}
-				$html .= getFileHTML($gamefile);
+				$fileHTML .= getFileHTML($gamefile);
 			}
+			if(isset($_GET['getFiles'])){
+				header('Content-Type: text/html');
+				echo $fileHTML;
+				exit;
+			}
+			$html .= '<div id="files">'.$fileHTML.'</div>';
 		}
 		$db->sql_freeresult($result);
 	}
@@ -895,14 +1003,21 @@ if(request_var('file',false)){
 			}
 			$db->sql_freeresult($result2);
 			$first = true;
-			$result2 = $db->sql_query(query_escape(getFilesSQL("t1.`category` LIKE '%s'"),'%['.(int)$cid.']%'));
+			$result2 = $db->sql_query(getFilesSQL("t1.`category` LIKE '%[".(int)$cid."]%'"));
+			$fileHTML = '';
 			while($gamefile = $db->sql_fetchrow($result2)){
 				if($first){
 					$html .= getFileSorter('?cat='.$cid,false);
 					$first = false;
 				}
-				$html .= getFileHTML($gamefile);
+				$fileHTML .= getFileHTML($gamefile);
 			}
+			if(isset($_GET['getFiles'])){
+				header('Content-Type:text/html');
+				echo $fileHTML;
+				exit;
+			}
+			$html .= '<div id="files">'.$fileHTML.'</div>';
 			$db->sql_freeresult($result2);
 			
 		}
@@ -1029,9 +1144,16 @@ if(request_var('file',false)){
 }else{
 	$html = '<h2>Gamebuino file archive Files</h2>'.getFileSorter('?',true);
 	$result = $db->sql_query(getFilesSQL('',true));
+	$fileHTML = '';
 	while($gamefile = $db->sql_fetchrow($result)){
-		$html .= getFileHTML($gamefile);
+		$fileHTML .= getFileHTML($gamefile);
 	}
+	if(isset($_GET['getFiles'])){
+		header('Content-Type: text/html');
+		echo $fileHTML;
+		exit;
+	}
+	$html .= '<div id="files">'.$fileHTML.'</div>';
 	$db->sql_freeresult($result);
 	$html .= '';
 	$page->getPage('Recent Files',$html);
