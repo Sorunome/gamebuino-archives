@@ -8,6 +8,8 @@ if(isset($request)){
 	$request->enable_super_globals();
 }
 
+define('FOLDERS',false);
+
 $user->session_begin();
 $auth->acl($user->data);
 $user->setup();
@@ -17,21 +19,25 @@ $isAdmin = $isLoggedIn && in_array((int)($user->data['user_type']),$adminTypes);
 $username = $user->data['username'];
 $userid = (int)($user->data['user_id']);
 $versions = array(
+	'',
 	'<img src="/wiki/gamelist/alpha.png" alt="alpha"> Alpha',
 	'<img src="/wiki/gamelist/beta.png" alt="beta"> Beta',
 	'<img src="/wiki/gamelist/release.png" alt="release"> Finished'
 );
 $versionsDropdown = array(
+	'--none--',
 	'Alpha',
 	'Beta',
 	'Finished'
 );
 $complexities = array(
+	'',
 	'<img src="/wiki/gamelist/basic.png" alt="basic"> Basic code complexity',
 	'<img src="/wiki/gamelist/intermediate.png" alt="intermediate"> Intermediate code complexity',
 	'<img src="/wiki/gamelist/advanced.png" alt="advanced"> Advanced code complexity'
 );
 $complexitiesDropdown = array(
+	'--none--',
 	'Basic',
 	'Intermediate',
 	'Advanced'
@@ -349,6 +355,24 @@ function getFilesSQL($where = '',$limit = false){
 		'ORDER BY t1.`downloads`'
 	);
 	$dirs = array('DESC','ASC');
+	if(isset($_GET['tags']) && preg_match("/^(\[\d+\])+$/",$cats = $_GET['tags'])){
+		$addWhere = '';
+		foreach(explode('][',substr($cats,1,strlen($cats)-2)) as $c){
+			// we already validated with the regex that $c can only be digits so it is safe to use without escaping
+			if($addWhere !== ''){
+				$addWhere .= ' OR ';
+			}
+			$addWhere .= "t1.`category` LIKE '%[".$c."]%'";
+		}
+		if($where === ''){
+			$where = $addWhere;
+		}elseif($addWhere !== ''){
+			$where = '('.$where.') AND ('.$addWhere.')';
+		}
+	}
+	if($where !== ''){
+		$where = 'WHERE '.$where;
+	}
 	$s .= $where.' '.$sortcolumns[$cursort].' '.$dirs[$curdir];
 	if($limit){
 		$curlimit = (int)request_var('limit',10);
@@ -378,8 +402,13 @@ class Page {
 			<body>'.$globalnav.'
 			<h1><img src="/navbar/gamebuino_logo_160.png" alt="gamebuino"> Games</h1><br>
 			<div class="centercont buttongroup">
-				<a class="button" href=".">Recent files</a>
-				<a class="button" href="?cat=1">Browse files</a>'.
+			'.
+			(FOLDERS?
+				'<a class="button" href=".">Recent files</a>
+				<a class="button" href="?cat=1">Browse files</a>'
+			:
+				'<a class="button" href=".">Show files</a>'
+			).
 			($isLoggedIn?
 				'<a class="button" href="/forum/ucp.php?mode=logout">Logout [ '.$username.' ]</a>
 				<a class="button" href="?newfile">Upload file</a>'.
@@ -511,11 +540,11 @@ class Screenshots {
 $screenshots = new Screenshots();
 
 function validateUpload(){
-	global $db;
+	global $db,$versionsDropdown,$complexitiesDropdown;
 	$complexity = request_var('complexity',0);
 	$version = request_var('version',0);
 	$cid = request_var('category','');
-	if(request_var('name','') != '' && $complexity >= 0 && $complexity <= 2 && $version >= 0 && $version <= 2 && preg_match("/^(\[\d+\])+$/",$cid)){
+	if(request_var('name','') != '' && $complexity >= 0 && $complexity <= sizeof($complexitiesDropdown) && $version >= 0 && $version <= sizeof($versionsDropdown) && preg_match("/^(\[\d+\])+$/",$cid)){
 		foreach(explode('][',substr($cid,1,strlen($cid)-2)) as $c){
 			$result = $db->sql_query(query_escape("SELECT `id` FROM `archive_categories` WHERE `id`=%d",$c));
 			if(!$db->sql_fetchrow($result)){
@@ -675,8 +704,8 @@ if(request_var('file',false)){
 				<tr><td>Added</td><td>'.date($user->data['user_dateformat'],$gamefile['ts_added']).'</td></tr>
 				<tr><td>Last&nbsp;Updated</td><td>'.date($user->data['user_dateformat'],$gamefile['ts_updated']).'</td></tr>
 				<tr><td>Description</td><td>'.str_replace("\n",'<br>',$gamefile['description']).'</td></tr>
-				<tr><td>Version</td><td>'.$versions[(int)$gamefile['version']].'</td></tr>
-				<tr><td>Complexity</td><td>'.$complexities[(int)$gamefile['complexity']].'</td></tr>
+				'.($gamefile['version'] > 0?'<tr><td>Version</td><td>'.$versions[(int)$gamefile['version']].'</td></tr>':'').'
+				'.($gamefile['complexity'] > 0?'<tr><td>Complexity</td><td>'.$complexities[(int)$gamefile['complexity']].'</td></tr>':'').'
 				'.
 				($gamefile['forum_url']!=''?
 					'<tr><td>Forum-Topic</td><td><a href="'.$gamefile['forum_url'].'" target="_blank">'.$gamefile['forum_url'].'</a></td></tr>'
@@ -685,7 +714,7 @@ if(request_var('file',false)){
 					'<tr><td>Code-Repository</td><td><a href="'.$gamefile['repo_url'].'" target="_blank">'.$gamefile['repo_url'].'</a></td></tr>'
 				:'').'<tr><td>Categories</td><td>';
 			foreach(explode('][',substr($gamefile['category'],1,strlen($gamefile['category'])-2)) as $c){
-				$html .= '<a href="?cat='.$c.'">'.$cats[$c].'</a> ';
+				$html .= '<a href="'.(FOLDERS?'?cat='.$c:'.?tags=['.$c.']').'">'.$cats[$c].'</a> ';
 			}
 			$html .= '
 				</td></tr>
@@ -833,7 +862,7 @@ if(request_var('file',false)){
 				<tr><td>Number&nbsp;of&nbsp;files</td><td>'.$files.'</td></tr>
 			</table><br>';
 			$first = true;
-			$result = $db->sql_query(query_escape(getFilesSQL("WHERE t1.`author`=%d"),$aid));
+			$result = $db->sql_query(query_escape(getFilesSQL("t1.`author`=%d"),$aid));
 			while($gamefile = $db->sql_fetchrow($result)){
 				if($first){
 					$html .= getFileSorter('?author='.$aid,false);
@@ -866,7 +895,7 @@ if(request_var('file',false)){
 			}
 			$db->sql_freeresult($result2);
 			$first = true;
-			$result2 = $db->sql_query(query_escape(getFilesSQL("WHERE t1.`category` LIKE '%s'"),'%['.(int)$cid.']%'));
+			$result2 = $db->sql_query(query_escape(getFilesSQL("t1.`category` LIKE '%s'"),'%['.(int)$cid.']%'));
 			while($gamefile = $db->sql_fetchrow($result2)){
 				if($first){
 					$html .= getFileSorter('?cat='.$cid,false);
