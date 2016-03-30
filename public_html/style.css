@@ -33,8 +33,16 @@ article {
 	padding:5px;
 }
 textarea {
-	width:100%;
+	width:99%;
+	width:calc(100% - 20px);
 	height:200px;
+}
+a {
+	color:#ff3300;
+	text-decoration: none;
+}
+a:hover {
+	color:#000000;
 }
 
 /* file container start */

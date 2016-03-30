@@ -171,8 +171,8 @@ function getEditForm($gamefile = false){
 							<td>advanced</td><td>involves assembly, pointers, 3D, streaming from the SD card, multi-player, etc.</td>
 						</tr>
 					</table>').'<br><input type="hidden" name="category" value="'.$gamefile['category'].'">
-			Categories:'.
-					getHelpHTML('The categories your game should be in, you can add multiple').'<span id="categoriesContent">Please enable Javascript!</span>';
+			'.(FOLDERS?'Categories:'.getHelpHTML('The categories your game should be in, you can add multiple'):'Tags:'.getHelpHTML('The tags your game should have, you can add multiple')).
+					'<span id="categoriesContent">Please enable Javascript!</span>';
 	$catlist = getCategoryListDropdown();
 	$cats = explode('][',substr($gamefile['category'],1,strlen($gamefile['category'])-2));
 	$html .= '<br>
@@ -234,7 +234,7 @@ function getEditForm($gamefile = false){
 function getFileSorter($url = '?',$limit = false){
 	$cursort = (int)request_var('sort',0);
 	$curdir = (int)request_var('direction',0);
-	$curlimit = (int)request_var('limit',10);
+	$curlimit = (int)request_var('limit',50);
 	$tags = request_var('tags','[0]');
 	if(!preg_match("/^(\[\d+\])+$/",$tags)){
 		$tags = '[0]';
@@ -431,7 +431,7 @@ function getFileSorter($url = '?',$limit = false){
 }
 function getFilesSQL($where = '',$limit = false){
 	$s = "SELECT t1.`id`,t1.`author`,t1.`description`,t1.`images`,t1.`name`,t1.`downloads`,t1.`upvotes`,t1.`downvotes`,t2.`username` FROM `archive_files` AS t1 INNER JOIN ".USERS_TABLE." AS t2 ON t1.`author` = t2.`user_id`";
-	$cursort = (int)request_var('sort',3);
+	$cursort = (int)request_var('sort',0);
 	$curdir = (int)request_var('direction',0);
 	if($cursort > 5 || $cursort < 0){
 		$cursort = 0;
@@ -500,7 +500,7 @@ class Page {
 				<script type="text/javascript" src="jquery-2.0.3.min.js"></script>
 			</head>
 			<body>'.$globalnav.'
-			<h1><img src="/navbar/gamebuino_logo_160.png" alt="gamebuino"> Games</h1><br>
+			<h1><a href="."><img src="/navbar/gamebuino_logo_160.png" alt="gamebuino"> Games</a></h1><br>
 			<div class="centercont buttongroup">
 			'.
 			(FOLDERS?
@@ -524,7 +524,7 @@ class Page {
 	}
 	private function getFooter(){
 		return '</article>
-			<footer>Archives software &copy;<a href="http://www.sorunome.de" target="_blank">Sorunome</a><br>Gamebuino &copy;Rodot<br>Something isn\'t working? <a href="https://github.com/Sorunome/gamebuino-archives/issues" target="_blank">Report the issue!</a></footer>
+			<footer>Archives software &copy;<a href="https://www.sorunome.de" target="_blank">Sorunome</a><br>Gamebuino &copy;Rodot<br>Something isn\'t working? <a href="https://github.com/Sorunome/gamebuino-archives/issues" target="_blank">Report the issue!</a></footer>
 			</body>
 			</html>';
 	}
@@ -812,7 +812,7 @@ if(request_var('file',false)){
 				:'').
 				($gamefile['repo_url']!=''?
 					'<tr><td>Code-Repository</td><td><a href="'.$gamefile['repo_url'].'" target="_blank">'.$gamefile['repo_url'].'</a></td></tr>'
-				:'').'<tr><td>Categories</td><td>';
+				:'').'<tr><td>'.(FOLDERS?'Categories':'Tags').'</td><td>';
 			foreach(explode('][',substr($gamefile['category'],1,strlen($gamefile['category'])-2)) as $c){
 				$html .= '<a href="'.(FOLDERS?'?cat='.$c:'.?tags=['.$c.']').'">'.$cats[$c].'</a> ';
 			}
