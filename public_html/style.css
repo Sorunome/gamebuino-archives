@@ -38,11 +38,12 @@ textarea {
 	height:200px;
 }
 a {
-	color:#ff3300;
+	color:#6179D8;
 	text-decoration: none;
 }
 a:hover {
-	color:#000000;
+	color:#6179D8;
+	text-decoration: underline;
 }
 
 /* file container start */
@@ -285,6 +286,7 @@ footer {
 	color:#FFF;
 	text-shadow:0px 1px #000;
 	background-color:#444;
+	text-decoration: none;
 }
 .button.warning {
 	background-color:orange;
