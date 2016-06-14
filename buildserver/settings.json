@@ -1,0 +1,8 @@
+{
+	"chroot":{
+		"user":"sorunome",
+		"group":"sorunome"
+	},
+	"max_jails":4,
+	"packages":["base-devel","git","wget","unzip"]
+}
