@@ -1,3 +1,8 @@
+<?php
+if(!$this->exists){
+	return;
+}
+?>
 <div class="filecont">
 	<div class="name"><?=$this->name?></div>
 	<div class="author"><a href="?author=<?=$this->authorId?>"><?=$this->author?></a></div>

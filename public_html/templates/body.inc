@@ -11,26 +11,25 @@
 <body><?php include('../navbar/navbar.html'); ?>
 	<h1><a href="."><img src="/navbar/gamebuino_logo_160.png" alt="gamebuino"> Games</a></h1><br>
 	<div class="centercont buttongroup">
-	<?php if(FOLDERS): ?>
-		<a class="button" href=".">Recent files</a>
-		<a class="button" href="?cat=1">Browse files</a>
-	<?php else: ?>
-		'<a class="button" href=".">Show files</a>'
-	<?php endif ?>
-	<?php if($isLoggedIn): ?>
-		<a class="button" href="/forum/ucp.php?mode=logout">Logout [ <?=$username?> ]</a>
-		<a class="button" href="?newfile">Upload file</a>
-		<?php if($asAdmin): ?>
-			<span class="button">Admin</span>
+		<a class="button" href=".">Show files</a>
+		<?php if($isLoggedIn): ?>
+			<a class="button" href="/forum/ucp.php?mode=logout">Logout [ <?=$username?> ]</a>
+			<a class="button" href="?edit=-1">Upload file</a>
+			<?php if($asAdmin): ?>
+				<span class="button">Admin</span>
+			<?php endif ?>
+		<?php else: ?>
+			<a class="button" href="/forum/ucp.php?mode=register">Register</a>
+			<a class="button" href="/forum/ucp.php?mode=login">Login</a>
 		<?php endif ?>
-	<?php else: ?>
-		<a class="button" href="/forum/ucp.php?mode=register">Register</a>
-		<a class="button" href="/forum/ucp.php?mode=login">Login</a>
-	<?php endif ?>
 	</div>
 	<article>
 		<?php $this->renderChildren(); ?>
 	</article>
-	<footer>Archives software &copy;<a href="https://www.sorunome.de" target="_blank">Sorunome</a><br>Gamebuino &copy;Rodot<br>Something isn\'t working? <a href="https://github.com/Sorunome/gamebuino-archives/issues" target="_blank">Report the issue!</a></footer>
+	<footer>
+		Archives software &copy;<a href="https://www.sorunome.de" target="_blank">Sorunome</a><br>
+		Gamebuino &copy;Rodot<br>
+		Something isn't working? <a href="https://github.com/Sorunome/gamebuino-archives/issues" target="_blank">Report the issue!</a>
+	</footer>
 	</body>
 </html>

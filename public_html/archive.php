@@ -12,6 +12,7 @@ if(isset($request)){
 define('FILE_EXTRA_FRAGMENT',"t1.`filename`,t1.`category`,t1.`forum_url`,t1.`repo_url`,t1.`version`,t1.`complexity`,UNIX_TIMESTAMP(t1.`ts_updated`) AS `ts_updated`,UNIX_TIMESTAMP(t1.`ts_added`) AS `ts_added`,t1.`hits`");
 define('FILE_SELECT',"t1.`id`,t1.`author`,t1.`description`,t1.`images`,t1.`name`,t1.`downloads`,t1.`upvotes`,t1.`downvotes`,t2.`username` FROM `archive_files` AS t1 INNER JOIN ".USERS_TABLE." AS t2 ON t1.`author` = t2.`user_id`");
 define('FILE_EXTRA_SELECT',FILE_EXTRA_FRAGMENT." FROM `archive_files` AS t1 INNER JOIN ".USERS_TABLE." AS t2 on t1.`author` = t2.`user_id`");
+define('AUTHOR_SELECT',"t1.`username`,t1.`user_id`,COUNT(t2.`id`) AS `files` FROM ".USERS_TABLE." AS t1 INNER JOIN `archive_files` AS t2 ON t1.`user_id`=t2.`author`");
 
 $user->session_begin();
 $auth->acl($user->data);
@@ -22,31 +23,6 @@ $isAdmin = $isLoggedIn && in_array((int)($user->data['user_type']),$adminTypes);
 $username = $user->data['username'];
 $userid = (int)($user->data['user_id']);
 
-
-$versions = array(
-	'',
-	'<img src="/wiki/gamelist/alpha.png" alt="alpha"> Alpha',
-	'<img src="/wiki/gamelist/beta.png" alt="beta"> Beta',
-	'<img src="/wiki/gamelist/release.png" alt="release"> Finished'
-);
-$versionsDropdown = array(
-	'--none--',
-	'Alpha',
-	'Beta',
-	'Finished'
-);
-$complexities = array(
-	'',
-	'<img src="/wiki/gamelist/basic.png" alt="basic"> Basic code complexity',
-	'<img src="/wiki/gamelist/intermediate.png" alt="intermediate"> Intermediate code complexity',
-	'<img src="/wiki/gamelist/advanced.png" alt="advanced"> Advanced code complexity'
-);
-$complexitiesDropdown = array(
-	'--none--',
-	'Basic',
-	'Intermediate',
-	'Advanced'
-);
 
 function generateRandomString($length = 20) {
 	$characters = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -125,6 +101,7 @@ class Template {
 		}
 	}
 	public function render(){
+		global $isAdmin,$isLoggedIn,$user,$userid,$username;
 		if(file_exists($this->_templateDir.$this->_file)){
 			include($this->_templateDir.$this->_file);
 		}else{
@@ -153,6 +130,44 @@ class Template {
 		return $this->properties[$k];
 	}
 }
+class Author{
+	private $id = -1;
+	private $name = '';
+	private $numFiles = 0;
+	public function __construct($obj){
+		global $db;
+		if(!is_array($obj)){
+			if(!is_numeric($obj)){
+				return;
+			}
+			$result = $db->sql_query(query_escape("SELECT ".AUTHOR_SELECT." WHERE `user_id`=%d",(int)$obj));
+			if(!($obj = $db->sql_fetchrow($result))){
+				$db->sql_freeresult($result);
+				return;
+			}
+			$db->sql_freeresult($result);
+		}
+		$this->id = (int)$obj['user_id'];
+		$this->name = $obj['username'];
+		$this->numFiles = $obj['files'];
+	}
+	public function exists(){
+		return $this->id != -1;
+	}
+	public function json(){
+		return array(
+			'id' => $this->id,
+			'name' => $this->name,
+			'numFiles' => $this->numFiles,
+			'exists' => $this->exists()
+		);
+	}
+	public function template(){
+		$t = new Template('author.inc');
+		$t->loadJSON($this->json());
+		return $t;
+	}
+}
 class File{
 	private $id = -1;
 	private $authorId = -1;
@@ -175,7 +190,6 @@ class File{
 	private $ts_added = 0;
 	private $hits = 0;
 	private function populate_extra($obj){
-		// t1.`filename`,t1,`category`,t1.`forum_url`,t1.`repo_url`,t1.`version`,t1.`complexity`,UNIX_TIMESTAMP(t1.`ts_updated`) AS `ts_updated`,UNIX_TIMESTAMP(t1.`ts_added`) AS `ts_added`,t1.`hits`
 		$this->filename = $obj['filename'];
 		$this->categories = array();
 		foreach(explode('][',substr($obj['category'],1,strlen($obj['category'])-2)) as $c){
@@ -198,6 +212,9 @@ class File{
 		$this->images = json_decode($obj['images'],true);
 		if(!$this->images){
 			$this->images = array();
+		}
+		for($i = sizeof($this->images);$i < 4;$i++){
+			$this->images[] = '';
 		}
 		$this->name = $obj['name'];
 		$this->downloads = (int)$obj['downloads'];
@@ -222,6 +239,9 @@ class File{
 	public function __construct($obj,$extra = false){
 		global $db;
 		if(!is_array($obj)){
+			if(!is_numeric($obj)){
+				return;
+			}
 			$result = $db->sql_query(query_escape("SELECT ".($extra?FILE_EXTRA_FRAGMENT.',':'').FILE_SELECT." WHERE t1.`id`=%d",(int)$obj));
 			if(!($obj = $db->sql_fetchrow($result))){
 				$db->sql_freeresult($result);
@@ -240,6 +260,7 @@ class File{
 			$image = 'uploads/screenshots/'.$this->images[0];
 		}
 		return array(
+			'exists' => $this->exists(),
 			'id' => $this->id,
 			'authorId' => $this->authorId,
 			'author' => $this->author,
@@ -251,32 +272,33 @@ class File{
 			'name' => $this->name
 		);
 	}
-	public function html_short(){
-		if(!$this->exists()){
-			return '';
+	public function json(){
+		if(!$this->extra){
+			$this->goextra();
 		}
-		$class = '';
-		if(isset($this->images[0]) && $this->images[0] != ''){
-			$image = 'uploads/screenshots/'.$this->images[0];
-		}else{
-			$image = '1x1.png';
-			$class = 'noimage';
-		}
-		return '
-			<div class="filecont">
-				<div class="name">'.$this->name.'</div>
-				<div class="author"><a href="?author='.$this->authorId.'">'.$this->author.'</a></div>
-				<a href="?file='.$this->id.'">
-					<div class="popup">
-						<div class="description">'.cutAtChar($this->description).'</div>
-						<div class="downloads">'.$this->downloads.'</div>
-						<div class="rating">+'.$this->upvotes.'/-'.$this->downvotes.'</div>
-					</div>
-					<img src="'.$image.'" alt="'.$this->name.'" class="'.$class.'">
-				</a>
-				<input class="fileDlCheckbox" type="checkbox" data-id="'.$this->id.'">
-			</div>
-		';
+		return array_merge($this->json_short(),array(
+			'hits' => $this->hits,
+			'downloads' => $this->downloads,
+			'ts_added' => $this->ts_added,
+			'ts_udated' => $this->ts_updated,
+			'version' => $this->version,
+			'complexity' => $this->complexity,
+			'description' => $this->description,
+			'forum_url' => $this->forum_url,
+			'repo_url' => $this->repo_url,
+			'images' => $this->images,
+			'categories' => $this->categories
+		));
+	}
+	public function template_short(){
+		$t = new Template('file_short.inc');
+		$t->loadJSON($this->json_short());
+		return $t;
+	}
+	public function template($file = 'file.inc'){
+		$t = new Template($file);
+		$t->loadJSON($this->json());
+		return $t;
 	}
 	public function visit(){
 		global $db;
@@ -287,65 +309,50 @@ class File{
 			$_SESSION['archives_last_file'] = $this->id;
 		}
 	}
-	public function html(){
-		global $userid,$isAdmin,$user,$versions,$complexities;
-		if(!$this->exists()){
-			return '';
+	public function rate($dir = 0){
+		global $userid,$isLoggedIn,$db;
+		$dir = (int)$dir;
+		if(($dir != 1  && $dir != -1)|| !$isLoggedIn){
+			return array(
+				'id' => $this->id,
+				'upvotes' => $this->upvotes,
+				'downvotes' => $this->downvotes
+			);
 		}
-		if(!$this->extra){
-			$this->goextra();
-		}
-		
-		$html = '';
-		if($userid == $this->authorId || $isAdmin){
-			$html = '<a href="?edit='.$this->id.'" id="editfile">Edit</a>';
-		}
-		$cats = getCategoryList();
-		$html .= '<table id="fileDescription" cellspacing="0" cellpadding="0">
-			<tr><th colspan="2">'.$this->name.' ( <a href="?dl='.$this->id.'" download>Download</a> )</th></tr>
-			<tr><td>Author</td><td><a href="?author='.$this->authorId.'">'.$this->author.'</a></td></tr>
-			<tr><td>Hits</td><td>'.$this->hits.'</td></tr>
-			<tr><td>Downloads</td><td>'.$this->downloads.'</td></tr>
-			<tr><td>Rating</td><td>+'.$this->upvotes.'/-'.$this->downvotes.'&nbsp;&nbsp;&nbsp;'.
-			($isLoggedIn?
-				'<a href="?rate='.$this->id.'&dir=1">+</a> <a href="?rate='.$this->id.'&dir=-1">-</a>'
-			:
-				'<a href="/forum/ucp.php?mode=login">Login</a> to rate!'
-			)
-			.'</td></tr>
-			<tr><td>Added</td><td>'.date($user->data['user_dateformat'],$this->ts_added).'</td></tr>
-			<tr><td>Last&nbsp;Updated</td><td>'.date($user->data['user_dateformat'],$this->ts_updated).'</td></tr>
-			<tr><td>Description</td><td>'.str_replace("\n",'<br>',$this->description).'</td></tr>
-			'.($this->version > 0?'<tr><td>Version</td><td>'.$versions[$this->version].'</td></tr>':'').'
-			'.($this->complexity > 0?'<tr><td>Complexity</td><td>'.$complexities[$this->complexity].'</td></tr>':'').'
-			'.
-			($this->forum_url!=''?
-				'<tr><td>Forum-Topic</td><td><a href="'.$this->forum_url.'" target="_blank">'.$this->forum_url.'</a></td></tr>'
-			:'').
-			($this->repo_url!=''?
-				'<tr><td>Code-Repository</td><td><a href="'.$this->repo_url.'" target="_blank">'.$this->repo_url.'</a></td></tr>'
-			:'').'<tr><td>'.(FOLDERS?'Categories':'Tags').'</td><td>';
-		foreach($this->categories as $c){
-			$html .= '<a href="'.(FOLDERS?'?cat='.$c:'.?tags=['.$c.']').'">'.$cats[$c].'</a> ';
-		}
-		$html .= '
-			</td></tr>
-			</table><br>
-			
-				<h2>SCREENSHOTS</h2>';
-				
-		
-		foreach($this->images as $i){
-			if($i != ''){
-				$html .= '<img src="uploads/screenshots/'.$i.'" alt="'.$this->name.'" class="fileDescImage">';
+		$votes = false;
+		$result = $db->sql_query(query_escape("SELECT `votes` FROM `archive_files` WHERE `id`=%d",$this->id));
+		if($votes = $db->sql_fetchrow($result)){
+			$votes = json_decode($votes['votes'],true);
+			if($votes == NULL){
+				$votes = array();
 			}
 		}
-		return $html;
+		$db->sql_freeresult($result);
+		
+		if($votes === false){
+			return $this->rate(0);
+		}
+		if(isset($votes[$userid])){
+			if($votes[$userid] > 0){
+				$this->upvotes--;
+			}else{
+				$this->downvotes--;
+			}
+		}
+		$votes[$userid] = $dir;
+		if($dir > 0){
+			$this->upvotes++;
+		}else{
+			$this->downvotes++;
+		}
+		$db->sql_freeresult($db->sql_query(query_escape("UPDATE `archive_files` SET `upvotes`=%d,`downvotes`=%d,`votes`='%s' WHERE `id`=%d",$this->upvotes,$this->downvotes,json_encode($votes),$this->id)));
+		return $this->rate(0);
 	}
 }
 class Files{
+	private $files = array();
 	private function getFilesSQL($where = '',$limit = false){
-		$s = "SELECT ".FILE_SELECT;
+		$s = "SELECT ".FILE_SELECT.' ';
 		$cursort = (int)request_var('sort',0);
 		$curdir = (int)request_var('direction',0);
 		if($cursort > 5 || $cursort < 0){
@@ -366,7 +373,7 @@ class Files{
 			'ORDER BY t1.`downloads`'
 		);
 		$dirs = array('DESC','ASC');
-		if(!FOLDERS && isset($_GET['tags']) && preg_match("/^(\[\d+\])+$/",$cats = $_GET['tags'])){
+		if(isset($_GET['tags']) && preg_match("/^(\[\d+\])+$/",$cats = $_GET['tags'])){
 			$addWhere = '';
 			foreach(explode('][',substr($cats,1,strlen($cats)-2)) as $c){
 				// we already validated with the regex that $c can only be digits so it is safe to use without escaping
@@ -398,16 +405,37 @@ class Files{
 		}
 		return $s;
 	}
-	public function get($where,$limit){
+	public function __construct($where = '',$limit = false){
 		global $db;
-		$result = $db->sql_query($this->getFilesSQL('',true));
-		$f = array();
+		$result = $db->sql_query($this->getFilesSQL($where,$limit));
+		$this->files = array();
 		while($gamefile = $db->sql_fetchrow($result)){
-			$f[] = new File($gamefile);
+			$this->files[] = new File($gamefile);
 		}
 		$db->sql_freeresult($result);
 		
-		return $f;
+	}
+	public function json(){
+		$json = array();
+		foreach($this->files as $f){
+			$json[] = $f->json_short();
+		}
+		return $json;
+	}
+	public function template(){
+		$t = new Template('files.inc');
+		$t2 = array();
+		foreach($this->files as $f){
+			$t2[] = $f->template_short();
+		}
+		if(isset($_GET['getFiles'])){
+			header('Content-Type: text/html');
+			foreach($t2 as $tt){
+				$tt->render();
+			}
+			exit;
+		}
+		$t->addChildren($t2);
+		return $t;
 	}
 }
-$files = new Files;

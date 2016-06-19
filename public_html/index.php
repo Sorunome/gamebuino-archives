@@ -1,10 +1,6 @@
 <?php
 include_once('archive.php');
 
-define('FOLDERS',false);
-
-
-
 function panic(){
 	header('Location:?error');
 	die();
@@ -23,186 +19,6 @@ function getCategoryListDropdown($cid = 1,$pre = ''){
 	$db->sql_freeresult($result);
 	return $cats;
 }
-function getHelpHTML($s){
-	return '<div class="help"><img src="help_icon.png"><div class="text">'.$s.'</div></div>';
-}
-function getEditForm($gamefile = false){
-	global $versionsDropdown,$complexitiesDropdown;
-	$edit = $gamefile!==false;
-	if(!$edit){
-		$gamefile = array(
-			'name' => '',
-			'description' => '',
-			'version' => 0,
-			'complexity' => 0,
-			'forum_url' => '',
-			'repo_url' => '',
-			'category' => '[0]',
-			'images' => '[]'
-		);
-	}
-	$images = json_decode($gamefile['images'],true);
-	for($i = 0;$i < 4;$i++){
-		$images[$i] = $images[$i]?$images[$i]:'';
-	}
-	$html = '<form id="fileeditform" action="?'.($edit?'save='.$gamefile['id']:'upload').'" method="post" enctype="multipart/form-data">
-			Name:<input type="text" name="name" value="'.$gamefile['name'].'">'.
-					getHelpHTML('The name of the file as it will be displayed').'<br>
-			'.($edit?'New zip-file (leave blank if it didn\'t change):':'Zip-file:').'<input type="file" name="zip">'.
-					getHelpHTML('The Zip-file containing the actual game, HEX (and INF) files').'<br>
-			Forum-Topic (optional):<input type="url" name="forum_url" value="'.$gamefile['forum_url'].'">'.
-					getHelpHTML('A link to the forum topic where discussion about this program/game occured').'<br>
-			Code-Repository (optional):<input type="url" name="repo_url" value="'.$gamefile['repo_url'].'">'.
-					getHelpHTML('A link to a repository (for example <a href="https://github.com" target="_blank">Github</a>) where the code is hosted on').'<br>
-			Version:<select name="version" size="1">';
-	
-	foreach($versionsDropdown as $i => $v){
-		$html .= '<option value="'.$i.'" '.($gamefile['version']==$i?'selected':'').'>'.$v.'</option>';
-	}
-	$html .= '</select>'.
-					getHelpHTML('The version of the game, defined as the following:<br><table>
-							<tr>
-								<td>alpha</td><td>game under development with the basic gameplay implemented</td>
-							</tr>
-							<tr>
-								<td>beta</td><td>a real game you can enjoy, but it still lacks a few features and a final polish</td>
-							</tr>
-							<tr>
-								<td>release</td><td>the game is finished, working and will no longer evolve</td>
-							</tr>
-						</table>').'<br>
-			Complexity:<select name="complexity" size="1">';
-	
-	foreach($complexitiesDropdown as $i => $c){
-		$html .= '<option value="'.$i.'" '.($gamefile['complexity']==$i?'selected':'').'>'.$c.'</option>';
-	}
-	$html .= '</select>'.
-					getHelpHTML('How complex the code is, defined as the following:<br><table>
-						<tr>
-							<td>basic</td><td>the code fits in one file <&nbsp;1500 lines and is easy to understand for a beginner</td>
-						</tr>
-						<tr>
-							<td>intermediate</td><td>program across several files, object oriented, PROGMEM, tile maps, etc.</td>
-						</tr>
-						<tr>
-							<td>advanced</td><td>involves assembly, pointers, 3D, streaming from the SD card, multi-player, etc.</td>
-						</tr>
-					</table>').'<br><input type="hidden" name="category" value="'.$gamefile['category'].'">
-			'.(FOLDERS?'Categories:'.getHelpHTML('The categories your game should be in, you can add multiple'):'Tags:'.getHelpHTML('The tags your game should have, you can add multiple')).
-					'<span id="categoriesContent">Please enable Javascript!</span>';
-	$catlist = getCategoryListDropdown();
-	$cats = explode('][',substr($gamefile['category'],1,strlen($gamefile['category'])-2));
-	$html .= '<br>
-			Description:'.
-					getHelpHTML('A long description of your game').'<br>
-			<textarea name="description">'.$gamefile['description'].'</textarea>
-			<br><br>
-			Screenshots (all optional'.($edit?', only saved if changed':'').'):'.
-					getHelpHTML('Nothing describes a game better than a screenshot! You can upload up to four, the first one will be the main screenshot.
-								Animated GIFs are allowed.').'<br>';
-	for($i = 0;$i < 4;$i++){
-		$html .= 'Image '.($i+1).($i == 0?' (main image)':'').':<input type="file" name="image'.$i.'">'.($edit?' | Delete old: <input type="checkbox" name="delimage'.$i.'" value="true">':'').'<br>';
-	}
-	$html .= '<br>
-			<input type="submit" value="'.($edit?'Save Edit':'Upload File').'">
-		</form>
-		<script type="text/javascript">
-			$(function(){
-				var catlist = '.json_encode($catlist).',
-					cats = '.json_encode($cats).',
-					makeCatList = function(v){
-						return $("<div>").addClass("categoryDropdown").append(
-							$("<select>").attr("size","1").append(
-								$.map(catlist,function(c,i){
-									i = i.substr(1);
-									return $("<option>").text(c).attr((i==v?"selected":"false"),"selected").val(i);
-								})
-							),"&nbsp;",
-							$("<a>").text("x").attr("href","http://remove").click(function(e){
-								e.preventDefault();
-								$(this).parent().remove();
-							})
-						);
-					};
-				$("#categoriesContent").empty().append(
-					$.map(cats,function(v){
-						return makeCatList(v);
-					})
-				).after($("<a>").text("+ add Category").attr("href","http://add").click(function(e){
-					e.preventDefault();
-					$("#categoriesContent").append(makeCatList());
-				}));
-				$("#fileeditform").submit(function(e){
-					var catIdsMix = $(".categoryDropdown select").map(function(){return this.value;}),
-						catIds = [];
-					$.each(catIdsMix,function(i,el){
-						if($.inArray("["+el+"]",catIds) === -1){
-							catIds.push("["+el+"]");
-						}
-					});
-					this.category.value = catIds.join("");
-					
-					// no e.preventDefault() as we still want to send it
-				});
-			});
-		</script>';
-	return $html;
-}
-function getFileSorter($url = '?',$limit = false){
-	
-	return '';
-}
-
-class Page {
-	private function getHeader($title){
-		global $isLoggedIn,$username,$isAdmin;
-		ob_start();
-		include('../navbar/navbar.html');
-		$globalnav = ob_get_clean();
-		return '<!DOCTYPE html>
-			<html>
-			<head>
-				<title>Gamebuino Archive - '.$title.'</title>
-				<meta http-equiv="content-type" content="text/html; charset=UTF-8">
-				<link rel="stylesheet" type="text/css" href="style.css">
-				<meta http-equiv="content-language" content="en-gb">
-				<link rel="shortcut icon" href="/favicon.ico">
-				<script type="text/javascript" src="jquery-2.0.3.min.js"></script>
-			</head>
-			<body>'.$globalnav.'
-			<h1><a href="."><img src="/navbar/gamebuino_logo_160.png" alt="gamebuino"> Games</a></h1><br>
-			<div class="centercont buttongroup">
-			'.
-			(FOLDERS?
-				'<a class="button" href=".">Recent files</a>
-				<a class="button" href="?cat=1">Browse files</a>'
-			:
-				'<a class="button" href=".">Show files</a>'
-			).
-			($isLoggedIn?
-				'<a class="button" href="/forum/ucp.php?mode=logout">Logout [ '.$username.' ]</a>
-				<a class="button" href="?newfile">Upload file</a>'.
-				($isAdmin?
-					'<span class="button">Admin</span>'
-				:'')
-			:
-				'<a class="button" href="/forum/ucp.php?mode=register">Register</a>
-				<a class="button" href="/forum/ucp.php?mode=login">Login</a>'
-			)
-			.'</div>
-			<article>';
-	}
-	private function getFooter(){
-		return '</article>
-			<footer>Archives software &copy;<a href="https://www.sorunome.de" target="_blank">Sorunome</a><br>Gamebuino &copy;Rodot<br>Something isn\'t working? <a href="https://github.com/Sorunome/gamebuino-archives/issues" target="_blank">Report the issue!</a></footer>
-			</body>
-			</html>';
-	}
-	public function getPage($title,$html){
-		echo $this->getHeader($title).$html.$this->getFooter();
-	}
-}
-$page = new Page();
 
 class Uploads {
 	private $uploadZipDir = 'uploads/zip/';
@@ -427,35 +243,35 @@ $body_template->title = '';
 
 if(request_var('file',false)){
 	$fid = request_var('file','invalid');
-	$html = '<b>Error: file not found</b>';
-	$title = 'File not found';
-	if((int)$fid == $fid){
-		$file = new File($fid,true);
-		if($file->exists()){
-			$file->visit();
-			$html = $file->html();
-			
-		}
-		
-			/*
-			$dlFiles = getDlFiles($fid) or panic();
-			$zip = new ZipArchive();
-			if($zip->open($upload->getZipName($fid))){
-				$html .= '<div id="zipcontentswrap"><div id="zipcontents">
-					<div id="zipcontentsheader">Archive contents ( <a href="?dl='.$fid.'&all" download>Download all</a> )</div>';
-				for($i = 0;$i < $zip->numFiles;$i++){
-					$name = $zip->getNameIndex($i);
-					$html .= '<div class="zipcontentsitem'.(in_array($name,$dlFiles)?' dlfile':'').'">'.htmlentities($name).'</div>';
-				}
-				$html .= '</div></div>';
-				$zip->close();
-			}else{
-				$html .= '<b>Couldn\'t open zip archive!</b>';
-			}*/
-			
-		$db->sql_freeresult($result);
+	$f = new File($fid,true);
+	$body_template->title = 'File not found';
+	$t = $f->template();
+	if($f->exists()){
+		$body_template->title = $t->name;
 	}
-	$page->getPage($title,$html);
+	$templates[] = $t;
+/*		if($file->exists()){
+		$file->visit();
+		$html = $file->html();
+		
+	}*/
+	
+		/*
+		$dlFiles = getDlFiles($fid) or panic();
+		$zip = new ZipArchive();
+		if($zip->open($upload->getZipName($fid))){
+			$html .= '<div id="zipcontentswrap"><div id="zipcontents">
+				<div id="zipcontentsheader">Archive contents ( <a href="?dl='.$fid.'&all" download>Download all</a> )</div>';
+			for($i = 0;$i < $zip->numFiles;$i++){
+				$name = $zip->getNameIndex($i);
+				$html .= '<div class="zipcontentsitem'.(in_array($name,$dlFiles)?' dlfile':'').'">'.htmlentities($name).'</div>';
+			}
+			$html .= '</div></div>';
+			$zip->close();
+		}else{
+			$html .= '<b>Couldn\'t open zip archive!</b>';
+		}*/
+	
 }elseif(request_var('dl',false)){
 	$fid = request_var('dl','invalid');
 	if((int)$fid == $fid){
@@ -553,132 +369,45 @@ if(request_var('file',false)){
 	$aid = request_var('author','invalid');
 	$html = '<b>Error: author not found</b>';
 	$title = 'Author not found';
-	if((int)$aid == $aid){
-		$result = $db->sql_query(query_escape("SELECT `username` FROM ".USERS_TABLE." WHERE `user_id`=%d",$aid));
-		if($author = $db->sql_fetchrow($result)){
-			$db->sql_freeresult($result);
-			$title = $author['username'];
-			$files = 0;
-			$result = $db->sql_query(query_escape("SELECT COUNT(`id`) AS `files` FROM `archive_files` WHERE `author`=%d",$aid));
-			if($f = $db->sql_fetchrow($result)){
-				$files = (int)$f;
-			}
-			$db->sql_freeresult($result);
-			$html = '<table id="authorDescription" cellspacing="0" cellpadding="0">
-				<tr><th colspan="2">'.htmlentities($author['username']).'</th></tr>
-				<tr><td>Forum&nbsp;Profile</td><td><a href="/forum/memberlist.php?mode=viewprofile&u='.$aid.'">'.htmlentities($author['username']).'</a></td></tr>
-				<tr><td>Number&nbsp;of&nbsp;files</td><td>'.$files.'</td></tr>
-			</table><br>';
-			$first = true;
-			$result = $db->sql_query(getFilesSQL("t1.`author`=".(int)$aid));
-			
-			$fileHTML = '';
-			while($gamefile = $db->sql_fetchrow($result)){
-				if($first){
-					$html .= getFileSorter('?author='.$aid,false);
-					$first = false;
-				}
-				$fileHTML .= getFileHTML($gamefile);
-			}
-			if(isset($_GET['getFiles'])){
-				header('Content-Type: text/html');
-				echo $fileHTML;
-				exit;
-			}
-			$html .= '<div id="files">'.$fileHTML.'</div>';
-		}
-		$db->sql_freeresult($result);
+	
+	$body_template->title = 'Recent Files';
+	$a = new Author($aid);
+	
+	$at = $a->template();
+	$at->url = '?author='.$at->id;
+	$templates[] = $at;
+	$body_template->title = $at->name;
+	
+	if($at->exists){
+		$f = new Files("t1.`author`=".$at->id);
+		$ft = $f->template();
+		$ft->url = '?author='.$at->id;
+		$templates[] = $ft;
+	}else{
+		$body_template->title = 'Invalid author';
 	}
-	$page->getPage($title,$html);
-}elseif(request_var('cat',false)){
-	$cid = request_var('cat','invalid');
-	$html = '<b>Error: cateogry not found</b>';
-	$title = 'Category not found';
-	if((int)$cid == $cid){
-		$result = $db->sql_query(query_escape("SELECT `id`,`category`,`name` FROM `archive_categories` WHERE `id`=%d",$cid));
-		if($cat = $db->sql_fetchrow($result)){
-			$title = $cat['name'];
-			$html = '
-				<h1>'.$cat['name'].'</h1>';
-			if($cat['category'] != $cid){
-				$html .= '<a class="subcatlink" href="?cat='.$cat['category'].'">Parent Category</a>';
-			}
-			$result2 = $db->sql_query(query_escape("SELECT `id`,`name` FROM `archive_categories` WHERE `category`=%d",$cid));
-			while($incat = $db->sql_fetchrow($result2)){
-				if($incat['id'] != $cid){
-					$html .= '<a class="subcatlink" href="?cat='.$incat['id'].'">'.$incat['name'].'</a>';
-				}
-			}
-			$db->sql_freeresult($result2);
-			$first = true;
-			$result2 = $db->sql_query(getFilesSQL("t1.`category` LIKE '%[".(int)$cid."]%'"));
-			$fileHTML = '';
-			while($gamefile = $db->sql_fetchrow($result2)){
-				if($first){
-					$html .= getFileSorter('?cat='.$cid,false);
-					$first = false;
-				}
-				$fileHTML .= getFileHTML($gamefile);
-			}
-			if(isset($_GET['getFiles'])){
-				header('Content-Type:text/html');
-				echo $fileHTML;
-				exit;
-			}
-			$html .= '<div id="files">'.$fileHTML.'</div>';
-			$db->sql_freeresult($result2);
-			
-		}
-		$db->sql_freeresult($result);
-	}
-	$page->getPage($title,$html);
 }elseif(request_var('rate',false)){
 	$fid = request_var('rate','invalid');
-	if($isLoggedIn && (int)$fid == $fid){
-		$result = $db->sql_query(query_escape("SELECT `upvotes`,`downvotes`,`votes` FROM `archive_files` WHERE `id`=%d",$fid));
-		if($gamefile = $db->sql_fetchrow($result)){
-			$dir = (int)request_var('dir',0);
-			if($dir == 1 || $dir == -1){
-				$up = (int)$gamefile['upvotes'];
-				$down = (int)$gamefile['downvotes'];
-				$votes = json_decode($gamefile['votes'],true);
-				if($votes == NULL){
-					$votes = array();
-				}
-				if(isset($votes[$userid])){
-					if($votes[$userid] > 0){
-						$up--;
-					}else{
-						$down--;
-					}
-				}
-				$votes[$userid] = $dir;
-				if($dir > 0){
-					$up++;
-				}else{
-					$down++;
-				}
-				$db->sql_freeresult($db->sql_query(query_escape("UPDATE `archive_files` SET `upvotes`=%d,`downvotes`=%d,`votes`='%s' WHERE `id`=%d",$up,$down,json_encode($votes),$fid)));
-			}
-		}
-		$db->sql_freeresult($result);
+	$f = new File($fid,true);
+	$res = $f->rate((int)request_var('dir',0));
+	if(isset($_GET['json'])){
+		header('Content-Type:application/json');
+		echo json_encode($res);
+		exit;
 	}
-	
-	header('Location: ?file='.$fid);
+	header('Location: ?file='.$res['id']);
+	exit;
 }elseif(request_var('edit',false)){
 	$fid = request_var('edit','invalid');
-	$title = 'Error';
-	$html = '<b>Error: Permission Denied</b>';
-	if($isLoggedIn && (int)$fid == $fid){
-		$result = $db->sql_query(query_escape("SELECT `id`,`author`,`name`,`description`,`version`,`complexity`,`forum_url`,`repo_url`,`category`,`images` FROM `archive_files` WHERE `id`=%d",$fid));
-		if($gamefile = $db->sql_fetchrow($result)){
-			if($userid == $gamefile['author'] || $isAdmin){ // we may edit the file
-				$html = '<h1>Editing file <i>'.htmlspecialchars($gamefile['name']).'</i></h1><a href="?file='.$fid.'">Back</a><br><br>'.getEditForm($gamefile);
-			}
-		}
-		$db->sql_freeresult($result);
+	$f = new File($fid,true);
+	$t = $f->template('edit.inc');
+	if($t->exists){
+		$body_template->title = $t->name;
+	}else{
+		$body_template->title = 'Error';
 	}
-	$page->getPage($title,$html);
+	$templates[] = $t;
+	
 }elseif(request_var('save',false)){
 	$fid = request_var('save','invalid');
 	$title = 'Error';
@@ -714,13 +443,6 @@ if(request_var('file',false)){
 		$db->sql_freeresult($result);
 	}
 	$page->getPage($title,$html);
-}elseif(isset($_GET['newfile'])){
-	$title = 'Upload file';
-	$html = 'You need to <a href="/forum/ucp.php?mode=register">Register</a> or <a href="/forum/ucp.php?mode=login">Login</a> to be able to upload a file!';
-	if($isLoggedIn){
-		$html = '<h1>Upload new file</h1>'.getEditForm(false);
-	}
-	$page->getPage($title,$html);
 }elseif(isset($_GET['upload'])){
 	$title = 'Upload file';
 	$html = 'You need to <a href="/forum/ucp.php?mode=register">Register</a> or <a href="/forum/ucp.php?mode=login">Login</a> to be able to upload a file!';
@@ -748,27 +470,12 @@ if(request_var('file',false)){
 	}
 	$page->getPage($title,$html);
 }elseif(isset($_GET['error'])){
-	$page->getPage('Error','Something went wrong! Be sure to <a href="https://github.com/Sorunome/gamebuino-archives/issues" target="_blank">report the issue</a>!');
+	$body_template->title = 'Error';
+	$templates[] = 'Something went wrong! Be sure to <a href="https://github.com/Sorunome/gamebuino-archives/issues" target="_blank">report the issue</a>!';
 }else{
-	$html = '<h2>Gamebuino file archive Files</h2>'.getFileSorter('?',true);
-	$fileHTML = '';
-	foreach($files->get('',true) as $f){
-		$t = new Template('file_short.inc');
-		$t->loadJSON($f->json_short());
-		$templates[] = $t;
-	}
-	if(isset($_GET['getFiles'])){
-		header('Content-Type: text/html');
-	}else{
-		$body_template->title = 'Recent Files';
-		$t = new Template('files.inc');
-		$t->limit = true;
-		$t->addChildren($templates);
-		$templates = array($t);
-	}
-	$html .= '<div id="files">'.$fileHTML.'</div>';
-	$html .= '';
-	//$page->getPage('Recent Files',$html);
+	$body_template->title = 'Recent Files';
+	$files = new Files('',true);
+	$templates[] = $files->template();
 }
 if(sizeof($templates) > 0){
 	if($body_template->title != ''){

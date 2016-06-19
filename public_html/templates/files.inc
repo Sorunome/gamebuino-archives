@@ -12,28 +12,18 @@ if(!preg_match("/^(\[\d+\])+$/",$tags)){
 	$tags = '[0]';
 }
 // $tags is now safe html due to the regex
-$sorts = array(
-	'Date updated',
-	'Date added'
-	'Name',
-	'Author',
-	'Rating',
-	'Downloads'
-);
 ?>
 
 <div id="fileSorter">
 	<div class="buttongroup">
-<?php
-foreach($sorts as $i => $s){
-	if($i == $cursort){
-		echo '<div class="button is-checked changestuff sortorder" data-num="'.$i.'">'.$s.'</div>';
-	}else{
-		echo '<a class="button changestuff sortorder" data-num="'.$i.'" href="'.$this->url.'&sort='.$i.'&direction='.$curdir.($this->limit?'&limit='.$curlimit:'').'&tags='.$tags.'">'.
-																				$s.'</a>';
-	}
-}
-?>
+	<?php foreach(array('Date updated','Date added','Name','Author','Rating','Downloads') as $i => $s): ?>
+		<?php if($i == $cursort): ?>
+			<div class="button is-checked changestuff sortorder" data-num="<?=$i?>"><?=$s?></div>
+		<?php else: ?>
+			<a class="button changestuff sortorder" data-num="<?=$i?>" href="<?=$this->url.'&sort='.$i.'&direction='.$curdir.($this->limit?'&limit='.$curlimit:'').'&tags='.$tags?>"><?=$s?></a>
+		<?php endif ?>
+	<?php endforeach ?>
+
 	</div>
 	<div class="buttongroup">';
 		<?php if($curdir == 0): ?>
@@ -46,16 +36,14 @@ foreach($sorts as $i => $s){
 	</div>
 	<?php if($this->limit): ?>
 		<div class="buttongroup"><div class="button is-checked" style="cursor:default;">Limit:</div>
-			<?php
-			$limits = array(10,20,50,100,200);
-			foreach($limits as $l){
-				if($l == $curlimit){
-					echo '<div class="button is-checked changestuff sortlimit" data-num="'.$l.'">'.$l.'</div>';
-				}else{
-					echo '<a class="button changestuff sortlimit" data-num="'.$l.'" href="'.$this->url.'&sort='.$cursort.'&direction='.$curdir.'&limit='.$l.'&tags='.$tags.'">'.$l.'</a>';
-				}
-			}
-			?>
+			<?php foreach(array(10,20,50,100,200) as $l): ?>
+				<?php if($l == $curlimit): ?>
+					<div class="button is-checked changestuff sortlimit" data-num="<?=$l?>"><?=$l?></div>
+				<?php else: ?>
+					<a class="button changestuff sortlimit" data-num="<?=$l?>" href="<?=$this->url.'&sort='.$cursort.'&direction='.$curdir.'&limit='.$l.'&tags='.$tags?>"><?=$l?></a>
+				<?php endif ?>
+			<?php endforeach ?>
+			
 			<?php if($curlimit == -1): ?>
 				<div class="button is-checked changestuff sortlimit" data-num="-1">All</div>';
 			<?php else: ?>
@@ -66,18 +54,15 @@ foreach($sorts as $i => $s){
 		$curlimit = -1;
 	endif ?>
 
-<? if(!FOLDERS): ?>
+
 	<div class="buttongroup"><div class="button is-checked" style="cursor:default;">Tags:</div>
 		<span id="taglistpicker"><div class="button error">Please enable Javascript</div></span>
-		<input type="hidden" id="taglist" value="'.$tags.'">
-		<?php
-		$taglist = getCategoryListDropdown();
-		$tags = explode('][',substr($tags,1,strlen($tags)-2));
-		?>
+		<input type="hidden" id="taglist" value="<?=$tags?>">
+		
 		<script type="text/javascript">
 			$(function(){
-				var taglist = <?=json_encode(array('_0' => 'All') + $taglist)?>,
-					tags = <?=json_encode($tags)?>,
+				var taglist = <?=json_encode(array('_0' => 'All') + getCategoryListDropdown())?>,
+					tags = <?=json_encode(explode('][',substr($tags,1,strlen($tags)-2)))?>,
 					updateTagList = function(){
 						var tagIdsMix = $(".tagDropdown select").map(function(){return this.value;}),
 							tagIds = [];
@@ -108,7 +93,7 @@ foreach($sorts as $i => $s){
 			});
 		</script>
 	</div>
-<?php endif ?>
+
 
 	<div class="buttongroup" id="selectedfilesgroup">
 		<div class="button" id="selectallfiles">Select all</div>
