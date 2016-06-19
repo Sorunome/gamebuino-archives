@@ -1,2 +1,6 @@
-buildserver/__pycache__
-buildserver/sandbox
+buildserver/backend/__pycache__
+buildserver/backend/sandbox
+buildserver/backend/builds
+buildserver/backend/input
+buildserver/backend/output
+buildserver/frontend/__pycache__

@@ -1,0 +1,217 @@
+<?php
+$this->setDefault(array(
+	'url' => '?',
+	'limit' => false
+));
+
+$cursort = (int)request_var('sort',0);
+$curdir = (int)request_var('direction',0);
+$curlimit = (int)request_var('limit',50);
+$tags = request_var('tags','[0]');
+if(!preg_match("/^(\[\d+\])+$/",$tags)){
+	$tags = '[0]';
+}
+// $tags is now safe html due to the regex
+$sorts = array(
+	'Date updated',
+	'Date added'
+	'Name',
+	'Author',
+	'Rating',
+	'Downloads'
+);
+?>
+
+<div id="fileSorter">
+	<div class="buttongroup">
+<?php
+foreach($sorts as $i => $s){
+	if($i == $cursort){
+		echo '<div class="button is-checked changestuff sortorder" data-num="'.$i.'">'.$s.'</div>';
+	}else{
+		echo '<a class="button changestuff sortorder" data-num="'.$i.'" href="'.$this->url.'&sort='.$i.'&direction='.$curdir.($this->limit?'&limit='.$curlimit:'').'&tags='.$tags.'">'.
+																				$s.'</a>';
+	}
+}
+?>
+	</div>
+	<div class="buttongroup">';
+		<?php if($curdir == 0): ?>
+			<div class="button is-checked changestuff sortdir" data-num="0">▼</div>
+			<a class="button changestuff sortdir" data-num="1" href="<?=$this->url.'&sort='.$cursort.'&direction=1'.($limit?'&limit='.$curlimit:'').'&tags='.$tags?>">▲</a>
+		<?php else: ?>
+			<a class="button changestuff sortdir" data-num="0" href="<?=$this->url.'&sort='.$cursort.'&direction=0'.($limit?'&limit='.$curlimit:'').'&tags='.$tags?>">▼</a>
+			<div class="button is-checked changestuff sortdir" data-num="1">▲</div>';
+		<?php endif ?>
+	</div>
+	<?php if($this->limit): ?>
+		<div class="buttongroup"><div class="button is-checked" style="cursor:default;">Limit:</div>
+			<?php
+			$limits = array(10,20,50,100,200);
+			foreach($limits as $l){
+				if($l == $curlimit){
+					echo '<div class="button is-checked changestuff sortlimit" data-num="'.$l.'">'.$l.'</div>';
+				}else{
+					echo '<a class="button changestuff sortlimit" data-num="'.$l.'" href="'.$this->url.'&sort='.$cursort.'&direction='.$curdir.'&limit='.$l.'&tags='.$tags.'">'.$l.'</a>';
+				}
+			}
+			?>
+			<?php if($curlimit == -1): ?>
+				<div class="button is-checked changestuff sortlimit" data-num="-1">All</div>';
+			<?php else: ?>
+				<a class="button changestuff sortlimit" data-num="-1" href="<?=$this->url.'&sort='.$cursort.'&direction='.$curdir.'&limit=-1&tags='.$tags?>">All</a>';
+			<?php endif ?>
+		</div>
+	<?php else:
+		$curlimit = -1;
+	endif ?>
+
+<? if(!FOLDERS): ?>
+	<div class="buttongroup"><div class="button is-checked" style="cursor:default;">Tags:</div>
+		<span id="taglistpicker"><div class="button error">Please enable Javascript</div></span>
+		<input type="hidden" id="taglist" value="'.$tags.'">
+		<?php
+		$taglist = getCategoryListDropdown();
+		$tags = explode('][',substr($tags,1,strlen($tags)-2));
+		?>
+		<script type="text/javascript">
+			$(function(){
+				var taglist = <?=json_encode(array('_0' => 'All') + $taglist)?>,
+					tags = <?=json_encode($tags)?>,
+					updateTagList = function(){
+						var tagIdsMix = $(".tagDropdown select").map(function(){return this.value;}),
+							tagIds = [];
+						$.each(tagIdsMix,function(i,el){
+							if($.inArray("["+el+"]",tagIds) === -1){
+								tagIds.push("["+el+"]");
+							}
+						});
+						$("#taglist").val(tagIds.join("")).trigger("change");
+					},
+					makeTagList = function(v){
+						return $("<div>").addClass("button tagDropdown").append(
+							$("<select>").attr("size","1").append(
+								$.map(taglist,function(c,i){
+									i = i.substr(1);
+									return $("<option>").text(c).attr(((i==v)?"selected":"false"),"selected").val(i);
+								})
+							).change(function(){
+								updateTagList();
+							})
+						);
+					};
+				$("#taglistpicker").empty().append(
+					$.map(tags,function(v){
+						return makeTagList(v);
+					})
+				);
+			});
+		</script>
+	</div>
+<?php endif ?>
+
+	<div class="buttongroup" id="selectedfilesgroup">
+		<div class="button" id="selectallfiles">Select all</div>
+		<div class="button" id="deselectallfiles">Deselect all</div>
+		<a class="button" id="downloadselectedfiles" download>Download selected</a>
+	</div>
+</div>
+
+<div id="files">
+	<?php $this->renderChildren(); ?>
+</div>
+
+<script type="text/javascript">
+	$(function(){
+		var DLIds = [],
+			updateDlUrl = function(){
+				$("#downloadselectedfiles").attr("href","?dlmult="+DLIds.join(","));
+			};
+		$(".fileDlCheckbox").prop("checked",false).change(function(){
+			var fid = this.dataset.id;
+			if(this.checked){
+				DLIds.push(fid);
+			}else{
+				DLIds = $.grep(DLIds,function(v){
+					return v != fid;
+				});
+			}
+			updateDlUrl();
+		});
+		$("#selectallfiles").click(function(){
+			DLIds = $(".fileDlCheckbox").prop("checked",true).map(function(){
+				return this.dataset.id;
+			}).get();
+			updateDlUrl();
+		});
+		$("#deselectallfiles").click(function(){
+			$(".fileDlCheckbox").prop("checked",false);
+			DLIds = [];
+			updateDlUrl();
+		});
+		$("#downloadselectedfiles").click(function(e){
+			if(DLIds.length < 1){
+				e.preventDefault();
+				alert("No files selected!");
+				return;
+			}
+			$(".stabilitywarning").remove();
+			$.getJSON(this.href+"&info",function(data){
+				if(data.stability > 0){
+					var $elem = $("<div>").addClass("button stabilitywarning").text("Stability errors");
+					switch(data.stability){
+						case 1:
+							$elem.text("Stability errors may occur due to file renaming").addClass("warning");
+							break;
+						case 2:
+							$elem.text("Stability errors will occur as not all files could be re-named").addClass("error");
+							break;
+					}
+					$("#selectedfilesgroup").append($elem);
+				}
+			})
+		})
+	});
+	$(function(){
+		var cursort = <?=$cursort?>,
+			curdir = <?=$curdir?>,
+			curlimit = <?=$curlimit?>,
+			curtags = "[0]",
+			getNewFiles = function(){
+				var url = "<?=$this->url?>&getFiles&sort="+cursort+"&direction="+curdir+"&limit="+curlimit;
+				if(curtags){
+					url += "&tags="+curtags;
+				}
+				$.get(url).done(function(data){
+					$("#files").empty().append(data);
+				});
+			};
+		$(".changestuff").click(function(e){
+			e.preventDefault();
+			if($(this).hasClass("is-checked")){
+				return;
+			}
+			var num = $(this).attr("data-num");
+			if(!num && num!==0){
+				return;
+			}
+			if($(this).hasClass("sortorder")){
+				cursort = num;
+				$(".sortorder").removeClass("is-checked");
+			}else if($(this).hasClass("sortdir")){
+				curdir = num;
+				$(".sortdir").removeClass("is-checked");
+			}else if($(this).hasClass("sortlimit")){
+				curlimit = num;
+				$(".sortlimit").removeClass("is-checked");
+			}
+			$(this).addClass("is-checked");
+			getNewFiles();
+		});
+		$("#taglist").change(function(){
+			curtags = $(this).val();
+			getNewFiles();
+		});
+		curtags = $("#taglist").val();
+	});
+</script>

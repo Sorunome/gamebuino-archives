@@ -1,92 +1,15 @@
 <?php
-session_start();
-define('IN_PHPBB', true);
-$phpbb_root_path = '../forum/';
-$adminTypes = array(3);
-$phpEx = substr(strrchr(__FILE__, '.'),1);
-include($phpbb_root_path.'common.'.$phpEx);
-if(isset($request)){
-	$request->enable_super_globals();
-}
+include_once('archive.php');
 
 define('FOLDERS',false);
 
-$user->session_begin();
-$auth->acl($user->data);
-$user->setup();
 
-$isLoggedIn = !($user->data['user_id'] == ANONYMOUS);
-$isAdmin = $isLoggedIn && in_array((int)($user->data['user_type']),$adminTypes);
-$username = $user->data['username'];
-$userid = (int)($user->data['user_id']);
-$versions = array(
-	'',
-	'<img src="/wiki/gamelist/alpha.png" alt="alpha"> Alpha',
-	'<img src="/wiki/gamelist/beta.png" alt="beta"> Beta',
-	'<img src="/wiki/gamelist/release.png" alt="release"> Finished'
-);
-$versionsDropdown = array(
-	'--none--',
-	'Alpha',
-	'Beta',
-	'Finished'
-);
-$complexities = array(
-	'',
-	'<img src="/wiki/gamelist/basic.png" alt="basic"> Basic code complexity',
-	'<img src="/wiki/gamelist/intermediate.png" alt="intermediate"> Intermediate code complexity',
-	'<img src="/wiki/gamelist/advanced.png" alt="advanced"> Advanced code complexity'
-);
-$complexitiesDropdown = array(
-	'--none--',
-	'Basic',
-	'Intermediate',
-	'Advanced'
-);
-function generateRandomString($length = 20) {
-	$characters = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
-	$charactersLength = strlen($characters);
-	$randomString = '';
-	for($i = 0; $i < $length; $i++){
-		$randomString .= $characters[rand(0, $charactersLength - 1)];
-	}
-	return $randomString;
-}
+
 function panic(){
 	header('Location:?error');
 	die();
 }
-function validate_url($url){
-	$url = trim($url);
-	return ((strpos($url, "http://") === 0 || strpos($url, "https://") === 0) &&
-			filter_var($url, FILTER_VALIDATE_URL, FILTER_FLAG_SCHEME_REQUIRED | FILTER_FLAG_HOST_REQUIRED) !== false);
-}
-function getUrl_safe($url){
-	if(validate_url($url)){
-		return $url;
-	}
-	return '';
-}
-function query_escape(){
-	global $db;
-	$params = func_get_args();
-	$query = $params[0];
-	$args = array();
-	for($i = 1;$i < count($params);$i++){
-		$args[$i-1] = $db->sql_escape($params[$i]);
-	}
-	return vsprintf($query,$args);
-}
-function getCategoryList(){
-	global $db;
-	$cats = array();
-	$result = $db->sql_query("SELECT `id`,`name` FROM `archive_categories`");
-	while($cat = $db->sql_fetchrow($result)){
-		$cats[(int)$cat['id']] = $cat['name'];
-	}
-	$db->sql_freeresult($result);
-	return $cats;
-}
+
 function getCategoryListDropdown($cid = 1,$pre = ''){
 	global $db;
 	$cats = array();
@@ -99,13 +22,6 @@ function getCategoryListDropdown($cid = 1,$pre = ''){
 	}
 	$db->sql_freeresult($result);
 	return $cats;
-}
-function cutAtChar($string,$width = 150){
-	if(strlen($string) > $width){
-		$string = wordwrap($string, $width);
-		return substr($string,0,strpos($string, "\n")).' [...]';
-	}
-	return $string;
 }
 function getHelpHTML($s){
 	return '<div class="help"><img src="help_icon.png"><div class="text">'.$s.'</div></div>';
@@ -233,257 +149,10 @@ function getEditForm($gamefile = false){
 	return $html;
 }
 function getFileSorter($url = '?',$limit = false){
-	$cursort = (int)request_var('sort',0);
-	$curdir = (int)request_var('direction',0);
-	$curlimit = (int)request_var('limit',50);
-	$tags = request_var('tags','[0]');
-	if(!preg_match("/^(\[\d+\])+$/",$tags)){
-		$tags = '[0]';
-	}
-	// $tags is now safe html due to the regex
-	$sorts = array(
-		'Date updated',
-		'Date added',
-		'Name',
-		'Author',
-		'Rating',
-		'Downloads'
-	);
-	$html = '<div id="fileSorter">
-		<div class="buttongroup">';
-	foreach($sorts as $i => $s){
-		if($i == $cursort){
-			$html .= '<div class="button is-checked changestuff sortorder" data-num="'.$i.'">'.$s.'</div>';
-		}else{
-			$html .= '<a class="button changestuff sortorder" data-num="'.$i.'" href="'.$url.'&sort='.$i.'&direction='.$curdir.($limit?'&limit='.$curlimit:'').'&tags='.$tags.'">'.
-																					$s.'</a>';
-		}
-	}
-	$html .= '	</div>
-		<div class="buttongroup">';
-	if($curdir == 0){
-		$html .= '<div class="button is-checked changestuff sortdir" data-num="0">▼</div>
-		<a class="button changestuff sortdir" data-num="1" href="'.$url.'&sort='.$cursort.'&direction=1'.($limit?'&limit='.$curlimit:'').'&tags='.$tags.'">▲</a>';
-	}else{
-		$html .= '<a class="button changestuff sortdir" data-num="0" href="'.$url.'&sort='.$cursort.'&direction=0'.($limit?'&limit='.$curlimit:'').'&tags='.$tags.'">▼</a>
-		<div class="button is-checked changestuff sortdir" data-num="1">▲</div>';
-	}
-	if($limit){
-		$html .= '</div><div class="buttongroup"><div class="button is-checked" style="cursor:default;">Limit:</div>';
-		$limits = array(10,20,50,100,200);
-		foreach($limits as $l){
-			if($l == $curlimit){
-				$html .= '<div class="button is-checked changestuff sortlimit" data-num="'.$l.'">'.$l.'</div>';
-			}else{
-				$html .= '<a class="button changestuff sortlimit" data-num="'.$l.'" href="'.$url.'&sort='.$cursort.'&direction='.$curdir.'&limit='.$l.'&tags='.$tags.'">'.$l.'</a>';
-			}
-		}
-		if($curlimit == -1){
-			$html .= '<div class="button is-checked changestuff sortlimit" data-num="-1">All</div>';
-		}else{
-			$html .= '<a class="button changestuff sortlimit" data-num="-1" href="'.$url.'&sort='.$cursort.'&direction='.$curdir.'&limit=-1&tags='.$tags.'">All</a>';
-		}
-	}else{
-		$curlimit = -1;
-	}
-	if(!FOLDERS){
-		$html .= '</div><div class="buttongroup"><div class="button is-checked" style="cursor:default;">Tags:</div>
-			<span id="taglistpicker"><div class="button error">Please enable Javascript</div></span>
-			<input type="hidden" id="taglist" value="'.$tags.'">';
-		$taglist = getCategoryListDropdown();
-		$tags = explode('][',substr($tags,1,strlen($tags)-2));
-		$html .= '
-			<script type="text/javascript">
-				$(function(){
-					var taglist = '.json_encode(array('_0' => 'All') + $taglist).',
-						tags = '.json_encode($tags).',
-						updateTagList = function(){
-							var tagIdsMix = $(".tagDropdown select").map(function(){return this.value;}),
-								tagIds = [];
-							$.each(tagIdsMix,function(i,el){
-								if($.inArray("["+el+"]",tagIds) === -1){
-									tagIds.push("["+el+"]");
-								}
-							});
-							$("#taglist").val(tagIds.join("")).trigger("change");
-						},
-						makeTagList = function(v){
-							return $("<div>").addClass("button tagDropdown").append(
-								$("<select>").attr("size","1").append(
-									$.map(taglist,function(c,i){
-										i = i.substr(1);
-										return $("<option>").text(c).attr(((i==v)?"selected":"false"),"selected").val(i);
-									})
-								).change(function(){
-									updateTagList();
-								})
-							);
-						};
-					$("#taglistpicker").empty().append(
-						$.map(tags,function(v){
-							return makeTagList(v);
-						})
-					);
-				});
-			</script>';
-	}
-	$html .= '</div>
-		<div class="buttongroup" id="selectedfilesgroup">
-			<div class="button" id="selectallfiles">Select all</div>
-			<div class="button" id="deselectallfiles">Deselect all</div>
-			<a class="button" id="downloadselectedfiles" download>Download selected</a>
-		</div>
-	</div>
-	<script type="text/javascript">
-		$(function(){
-			var DLIds = [],
-				updateDlUrl = function(){
-					$("#downloadselectedfiles").attr("href","?dlmult="+DLIds.join(","));
-				};
-			$(".fileDlCheckbox").prop("checked",false).change(function(){
-				var fid = this.dataset.id;
-				if(this.checked){
-					DLIds.push(fid);
-				}else{
-					DLIds = $.grep(DLIds,function(v){
-						return v != fid;
-					});
-				}
-				updateDlUrl();
-			});
-			$("#selectallfiles").click(function(){
-				DLIds = $(".fileDlCheckbox").prop("checked",true).map(function(){
-					return this.dataset.id;
-				}).get();
-				updateDlUrl();
-			});
-			$("#deselectallfiles").click(function(){
-				$(".fileDlCheckbox").prop("checked",false);
-				DLIds = [];
-				updateDlUrl();
-			});
-			$("#downloadselectedfiles").click(function(e){
-				if(DLIds.length < 1){
-					e.preventDefault();
-					alert("No files selected!");
-					return;
-				}
-				$(".stabilitywarning").remove();
-				$.getJSON(this.href+"&info",function(data){
-					if(data.stability > 0){
-						var $elem = $("<div>").addClass("button stabilitywarning").text("Stability errors");
-						switch(data.stability){
-							case 1:
-								$elem.text("Stability errors may occur due to file renaming").addClass("warning");
-								break;
-							case 2:
-								$elem.text("Stability errors will occur as not all files could be re-named").addClass("error");
-								break;
-						}
-						$("#selectedfilesgroup").append($elem);
-					}
-				})
-			})
-		});
-		$(function(){
-			var cursort = '.$cursort.',
-				curdir = '.$curdir.',
-				curlimit = '.$curlimit.',
-				curtags = "[0]",
-				getNewFiles = function(){
-					var url = "'.$url.'&getFiles&sort="+cursort+"&direction="+curdir+"&limit="+curlimit;
-					if(curtags){
-						url += "&tags="+curtags;
-					}
-					$.get(url).done(function(data){
-						$("#files").empty().append(data);
-					});
-				};
-			$(".changestuff").click(function(e){
-				e.preventDefault();
-				if($(this).hasClass("is-checked")){
-					return;
-				}
-				var num = $(this).attr("data-num");
-				if(!num && num!==0){
-					return;
-				}
-				if($(this).hasClass("sortorder")){
-					cursort = num;
-					$(".sortorder").removeClass("is-checked");
-				}else if($(this).hasClass("sortdir")){
-					curdir = num;
-					$(".sortdir").removeClass("is-checked");
-				}else if($(this).hasClass("sortlimit")){
-					curlimit = num;
-					$(".sortlimit").removeClass("is-checked");
-				}
-				$(this).addClass("is-checked");
-				getNewFiles();
-			});
-			$("#taglist").change(function(){
-				curtags = $(this).val();
-				getNewFiles();
-			});
-			curtags = $("#taglist").val();
-		});
-	</script>';
-	return $html;
+	
+	return '';
 }
-function getFilesSQL($where = '',$limit = false){
-	$s = "SELECT t1.`id`,t1.`author`,t1.`description`,t1.`images`,t1.`name`,t1.`downloads`,t1.`upvotes`,t1.`downvotes`,t2.`username` FROM `archive_files` AS t1 INNER JOIN ".USERS_TABLE." AS t2 ON t1.`author` = t2.`user_id`";
-	$cursort = (int)request_var('sort',0);
-	$curdir = (int)request_var('direction',0);
-	if($cursort > 5 || $cursort < 0){
-		$cursort = 0;
-	}
-	if($curdir > 1 || $curdir < 0){
-		$curdir = 0;
-	}
-	if($cursort == 2 || $cursort == 3){ // name and author are sorted the other way
-		$curdir = 1-$curdir;
-	}
-	$sortcolumns = array(
-		'ORDER BY t1.`ts_updated`',
-		'ORDER BY t1.`ts_added`',
-		'ORDER BY LOWER(t1.`name`)',
-		'ORDER BY LOWER(t2.`username`)',
-		'ORDER BY (t1.`upvotes`-t1.`downvotes`)',
-		'ORDER BY t1.`downloads`'
-	);
-	$dirs = array('DESC','ASC');
-	if(!FOLDERS && isset($_GET['tags']) && preg_match("/^(\[\d+\])+$/",$cats = $_GET['tags'])){
-		$addWhere = '';
-		foreach(explode('][',substr($cats,1,strlen($cats)-2)) as $c){
-			// we already validated with the regex that $c can only be digits so it is safe to use without escaping
-			if($c != 0){
-				if($addWhere !== ''){
-					$addWhere .= ' OR ';
-				}
-				$addWhere .= "t1.`category` LIKE '%[".$c."]%'";
-			}
-		}
-		if($where === ''){
-			$where = $addWhere;
-		}elseif($addWhere !== ''){
-			$where = '('.$where.') AND ('.$addWhere.')';
-		}
-	}
-	if($where !== ''){
-		$where = 'WHERE '.$where;
-	}
-	$s .= $where.' '.$sortcolumns[$cursort].' '.$dirs[$curdir];
-	if($limit){
-		$curlimit = (int)request_var('limit',10);
-		if($curlimit != -1){
-			if($curlimit < 1){
-				$curlimit = 1;
-			}
-			$s .= ' LIMIT '.$curlimit;
-		}
-	}
-	return $s;
-}
+
 class Page {
 	private function getHeader($title){
 		global $isLoggedIn,$username,$isAdmin;
@@ -686,31 +355,7 @@ function getImagesArrayFromUpload($fid,$fileArray = false){
 	}
 	return array($fileArray,$html);
 }
-function getFileHTML($gamefile){
-	$image = json_decode($gamefile['images'],true);
-	$class = '';
-	if(isset($image[0]) && $image[0] != ''){
-		$image = 'uploads/screenshots/'.$image[0];
-	}else{
-		$image = '1x1.png';
-		$class = 'noimage';
-	}
-	return '
-		<div class="filecont">
-			<div class="name">'.$gamefile['name'].'</div>
-			<div class="author"><a href="?author='.$gamefile['author'].'">'.$gamefile['username'].'</a></div>
-			<a href="?file='.$gamefile['id'].'">
-				<div class="popup">
-					<div class="description">'.cutAtChar($gamefile['description']).'</div>
-					<div class="downloads">'.$gamefile['downloads'].'</div>
-					<div class="rating">+'.$gamefile['upvotes'].'/-'.$gamefile['downvotes'].'</div>
-				</div>
-				<img src="'.$image.'" alt="'.$gamefile['name'].'" class="'.$class.'">
-			</a>
-			<input class="fileDlCheckbox" type="checkbox" data-id="'.$gamefile['id'].'">
-		</div>
-	';
-}
+
 function getDlFiles($fid){
 	global $upload;
 	$zip = new ZipArchive();
@@ -775,65 +420,24 @@ function getDlFilesMult($fids){
 	}
 	return array($rename,$dlChangeNames);
 }
+
+$templates = array();
+$body_template = new Template('body.inc');
+$body_template->title = '';
+
 if(request_var('file',false)){
 	$fid = request_var('file','invalid');
 	$html = '<b>Error: file not found</b>';
 	$title = 'File not found';
 	if((int)$fid == $fid){
-		if(isset($_SESSION['archives_last_file']) && $_SESSION['archives_last_file']!=$fid){
-			$db->sql_freeresult($db->sql_query(query_escape("UPDATE `archive_files` SET `hits`=`hits`+1 WHERE `id`=%d",$fid)));
+		$file = new File($fid,true);
+		if($file->exists()){
+			$file->visit();
+			$html = $file->html();
+			
 		}
-		$_SESSION['archives_last_file'] = $fid;
-		$result = $db->sql_query(query_escape("SELECT t1.`filename`,t1.`category`,t1.`forum_url`,t1.`repo_url`,t1.`version`,t1.`complexity`,t1.`id`,t1.`author`,
-					t1.`description`,UNIX_TIMESTAMP(t1.`ts_updated`) AS `ts_updated`,UNIX_TIMESTAMP(t1.`ts_added`) AS `ts_added`,t1.`images`,t1.`name`,t1.`downloads`,
-					t1.`upvotes`,t1.`downvotes`,t2.`username`,t1.`hits` FROM `archive_files` AS t1 INNER JOIN ".USERS_TABLE." AS t2 ON t1.`author` = t2.`user_id` WHERE t1.`id`=%d",$fid));
-		if($gamefile = $db->sql_fetchrow($result)){
-			$title = $gamefile['name'];
-			$html = '';
-			if($userid == $gamefile['author'] || $isAdmin){
-				$html = '<a href="?edit='.$fid.'" id="editfile">Edit</a>';
-			}
-			$cats = getCategoryList();
-			$html .= '<table id="fileDescription" cellspacing="0" cellpadding="0">
-				<tr><th colspan="2">'.$gamefile['name'].' ( <a href="?dl='.$fid.'" download>Download</a> )</th></tr>
-				<tr><td>Author</td><td><a href="?author='.$gamefile['author'].'">'.$gamefile['username'].'</a></td></tr>
-				<tr><td>Hits</td><td>'.$gamefile['hits'].'</td></tr>
-				<tr><td>Downloads</td><td>'.$gamefile['downloads'].'</td></tr>
-				<tr><td>Rating</td><td>+'.$gamefile['upvotes'].'/-'.$gamefile['downvotes'].'&nbsp;&nbsp;&nbsp;'.
-				($isLoggedIn?
-					'<a href="?rate='.$gamefile['id'].'&dir=1">+</a> <a href="?rate='.$gamefile['id'].'&dir=-1">-</a>'
-				:
-					'<a href="/forum/ucp.php?mode=login">Login</a> to rate!'
-				)
-				.'</td></tr>
-				<tr><td>Added</td><td>'.date($user->data['user_dateformat'],$gamefile['ts_added']).'</td></tr>
-				<tr><td>Last&nbsp;Updated</td><td>'.date($user->data['user_dateformat'],$gamefile['ts_updated']).'</td></tr>
-				<tr><td>Description</td><td>'.str_replace("\n",'<br>',$gamefile['description']).'</td></tr>
-				'.($gamefile['version'] > 0?'<tr><td>Version</td><td>'.$versions[(int)$gamefile['version']].'</td></tr>':'').'
-				'.($gamefile['complexity'] > 0?'<tr><td>Complexity</td><td>'.$complexities[(int)$gamefile['complexity']].'</td></tr>':'').'
-				'.
-				($gamefile['forum_url']!=''?
-					'<tr><td>Forum-Topic</td><td><a href="'.$gamefile['forum_url'].'" target="_blank">'.$gamefile['forum_url'].'</a></td></tr>'
-				:'').
-				($gamefile['repo_url']!=''?
-					'<tr><td>Code-Repository</td><td><a href="'.$gamefile['repo_url'].'" target="_blank">'.$gamefile['repo_url'].'</a></td></tr>'
-				:'').'<tr><td>'.(FOLDERS?'Categories':'Tags').'</td><td>';
-			foreach(explode('][',substr($gamefile['category'],1,strlen($gamefile['category'])-2)) as $c){
-				$html .= '<a href="'.(FOLDERS?'?cat='.$c:'.?tags=['.$c.']').'">'.$cats[$c].'</a> ';
-			}
-			$html .= '
-				</td></tr>
-				</table><br>
-				
-					<h2>SCREENSHOTS</h2>';
-					
-			$images = json_decode($gamefile['images'],true);
-			foreach($images as $i){
-				if($i != ''){
-					$html .= '<img src="uploads/screenshots/'.$i.'" alt="'.$gamefile['name'].'" class="fileDescImage">';
-				}
-			}
-			$html .= '<br>';
+		
+			/*
 			$dlFiles = getDlFiles($fid) or panic();
 			$zip = new ZipArchive();
 			if($zip->open($upload->getZipName($fid))){
@@ -847,8 +451,8 @@ if(request_var('file',false)){
 				$zip->close();
 			}else{
 				$html .= '<b>Couldn\'t open zip archive!</b>';
-			}
-		}
+			}*/
+			
 		$db->sql_freeresult($result);
 	}
 	$page->getPage($title,$html);
@@ -1147,19 +751,37 @@ if(request_var('file',false)){
 	$page->getPage('Error','Something went wrong! Be sure to <a href="https://github.com/Sorunome/gamebuino-archives/issues" target="_blank">report the issue</a>!');
 }else{
 	$html = '<h2>Gamebuino file archive Files</h2>'.getFileSorter('?',true);
-	$result = $db->sql_query(getFilesSQL('',true));
 	$fileHTML = '';
-	while($gamefile = $db->sql_fetchrow($result)){
-		$fileHTML .= getFileHTML($gamefile);
+	foreach($files->get('',true) as $f){
+		$t = new Template('file_short.inc');
+		$t->loadJSON($f->json_short());
+		$templates[] = $t;
 	}
 	if(isset($_GET['getFiles'])){
 		header('Content-Type: text/html');
-		echo $fileHTML;
-		exit;
+	}else{
+		$body_template->title = 'Recent Files';
+		$t = new Template('files.inc');
+		$t->limit = true;
+		$t->addChildren($templates);
+		$templates = array($t);
 	}
 	$html .= '<div id="files">'.$fileHTML.'</div>';
-	$db->sql_freeresult($result);
 	$html .= '';
-	$page->getPage('Recent Files',$html);
+	//$page->getPage('Recent Files',$html);
+}
+if(sizeof($templates) > 0){
+	if($body_template->title != ''){
+		$body_template->addChildren($templates);
+		$body_template->render();
+	}else{
+		foreach($templates as $t){
+			if(is_string($t)){
+				echo $t;
+			}else{
+				$t->render();
+			}
+		}
+	}
 }
 ?>
