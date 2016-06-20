@@ -1,3 +1,4 @@
+{:global $isLoggedIn,$userid,$isAdmin}
 <?php
 if(!($userid == $this->authorId || $isAdmin || !$this->exists)){
 	echo 'Access Denied';
@@ -19,33 +20,33 @@ $complexitiesDropdown = array(
 	'Advanced'
 );
 ?>
-<?php if($this->exists): ?>
-	<h1>Editing file <i><?=$this->name?></i></h1><a href="?file=<?=$this->id?>">Back</a><br><br>
-<?php else: ?>
-	<?php if($isLoggedIn): ?>
+{#if {{exists}}}
+	<h1>Editing file <i>{name}</i></h1><a href="?file={id}">Back</a><br><br>
+{#else}
+	{#if $isLoggedIn}
 		<h1>Upload new file</h1>
-	<?php else: ?>
+	{#else}
 		You need to <a href="/forum/ucp.php?mode=register">Register</a> or <a href="/forum/ucp.php?mode=login">Login</a> to be able to upload a file!
 		<?php return ?>
-	<?php endif ?>
-<?php endif ?>
-<form id="fileeditform" action="?save=<?=$this->id?>" method="post" enctype="multipart/form-data">
-	Name:<input type="text" name="name" value="<?=$this->name?>">
+	{#endif}
+{#endif}
+<form id="fileeditform" action="?save={id}" method="post" enctype="multipart/form-data">
+	Name:<input type="text" name="name" value="{name}">
 			<?=getHelpHTML('The name of the file as it will be displayed')?><br>
-	<?php if($this->exists): ?>
+	{#if {{exists}}}
 		New zip-file (leave blank if it didn't change):<input type="file" name="zip">
-	<?php else: ?>
+	{#else}
 		Zip-file:<input type="file" name="zip">
-	<?php endif ?>
+	{#endif}
 			<?=getHelpHTML('The Zip-file containing the actual game, HEX (and INF) files')?><br>
-	Forum-Topic (optional):<input type="url" name="forum_url" value="<?=$this->forum_url?>">
+	Forum-Topic (optional):<input type="url" name="forum_url" value="{forum_url}">
 			<?=getHelpHTML('A link to the forum topic where discussion about this program/game occured')?><br>
-	Code-Repository (optional):<input type="url" name="repo_url" value="<?=$gamefile['repo_url']?>">
+	Code-Repository (optional):<input type="url" name="repo_url" value="{repo_url}">
 			<?=getHelpHTML('A link to a repository (for example <a href="https://github.com" target="_blank">Github</a>) where the code is hosted on')?><br>
 	Version:<select name="version" size="1">
-		<?php foreach($versionsDropdown as $i => $v): ?>
-				<option value="<?=$i?>" <?=($gamefile['version']==$i?'selected':'')?>><?=$v?></option>
-		<?php endforeach ?>
+		{#foreach $versionsDropdown as $i => $v}
+				<option value="{$i}" {#if {{version}} == $i}selected{#endif}>{$v}</option>
+		{#endforeach}
 	</select>
 			<?=getHelpHTML('The version of the game, defined as the following:<br><table>
 					<tr>
@@ -59,9 +60,9 @@ $complexitiesDropdown = array(
 					</tr>
 				</table>')?><br>
 	Complexity:<select name="complexity" size="1">
-		<?php foreach($complexitiesDropdown as $i => $c): ?>
-			<option value="<?=$i?>" <?=($gamefile['complexity']==$i?'selected':'')?>><?=$c?></option>
-		<?php endforeach ?>
+		{#foreach $complexitiesDropdown as $i => $c}
+			<option value="{$i}" {#if {{complexity}} == $i}selected{#endif}>{$c}</option>
+		{#endforeach}
 	</select>
 			<?=getHelpHTML('How complex the code is, defined as the following:<br><table>
 				<tr>
@@ -74,24 +75,24 @@ $complexitiesDropdown = array(
 					<td>advanced</td><td>involves assembly, pointers, 3D, streaming from the SD card, multi-player, etc.</td>
 				</tr>
 			</table>')?><br>
-	<input type="hidden" name="category" value="<?='['.implode('][',$this->categories).']'?>">
+	<input type="hidden" name="category" value="{'['.implode('][',{{categories}}).']'}">
 	Tags:<?=getHelpHTML('The tags your game should have, you can add multiple')?>
 	<span id="categoriesContent">Please enable Javascript!</span><br>
 	Description:<?=getHelpHTML('A long description of your game')?><br>
-	<textarea name="description"><?=$this->description?></textarea>
+	<textarea name="description">{description}</textarea>
 	<br><br>
-	Screenshots (all optional<?=($this->exists?', only saved if changed':'')?>):
+	Screenshots (all optional{#if {{exists}}}, only saved if changed{#endif}):
 			<?=getHelpHTML('Nothing describes a game better than a screenshot! You can upload up to four, the first one will be the main screenshot.
 						Animated GIFs are allowed.')?><br>
-	<?php for($i = 0;$i < 4;$i++): ?>
-		Image <?=($i+1).($i == 0?' (main image)':'')?>:<input type="file" name="image<?=$i?>">
-		<?php if($this->exists): ?>
-			| Delete old: <input type="checkbox" name="delimage<?=$i?>" value="true">
-		<?php endif ?>
+	{#for $i = 0;$i < 4;$i++}
+		Image {$i+1}{#if $i==0} (main image){#endif}:<input type="file" name="image{$i}">
+		{#if {{exists}}}
+			| Delete old: <input type="checkbox" name="delimage{$i}" value="true">
+		{#endif}
 		<br>
-	<?php endfor ?>
+	{#endfor}
 	<br>
-	<input type="submit" value="<?=$this->exists?'Save Edit':'Upload File'?>">
+	<input type="submit" value="{#if {{exists}}}Save Edit{#else}Upload File{#endif}">
 </form>
 <script type="text/javascript">
 	$(function(){

@@ -1,4 +1,5 @@
 <?php
+include_once('template.php');
 session_start();
 define('IN_PHPBB', true);
 $phpbb_root_path = '../forum/';
@@ -76,60 +77,7 @@ function cutAtChar($string,$width = 150){
 	}
 	return $string;
 }
-class Template {
-	private $_templateDir = 'templates/';
-	private $_file = '';
-	private $_children = array();
-	public $properties = array();
-	public function __construct($file){
-		$this->_file = $file;
-	}
-	private function setDefault($a){
-		foreach($a as $k => $v){
-			if(!isset($this->properties[$k])){
-				$this->properties[$k] = $v;
-			}
-		}
-	}
-	private function renderChildren($key = '_children'){
-		foreach($this->$key as $c){
-			if(is_string($c)){
-				echo $c;
-			}else{
-				$c->render();
-			}
-		}
-	}
-	public function render(){
-		global $isAdmin,$isLoggedIn,$user,$userid,$username;
-		if(file_exists($this->_templateDir.$this->_file)){
-			include($this->_templateDir.$this->_file);
-		}else{
-			throw new Exception("Couldn't find template file {$this->_templateDir}{$this->_file} !");
-		}
-	}
-	public function addChildren($c,$key = '_children'){
-		if(is_array($c)){
-			$this->$key = array_merge($this->$key,$c);
-		}else{
-			$this->$key[] = $c;
-		}
-	}
-	public function addChild($c,$key = '_children'){
-		$this->addChildren($c,$key);
-	}
-	public function loadJSON($j){
-		foreach($j as $k => $v){
-			$this->properties[$k] = $v;
-		}
-	}
-	public function __set($k,$v){
-		$this->properties[$k] = $v;
-	}
-	public function __get($k){
-		return $this->properties[$k];
-	}
-}
+
 class Author{
 	private $id = -1;
 	private $name = '';

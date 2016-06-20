@@ -6,3 +6,6 @@ buildserver/backend/output
 buildserver/frontend/__pycache__
 public_html/tmp
 public_html/uploads
+public_html/cache
+forum
+navbar

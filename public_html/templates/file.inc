@@ -1,3 +1,4 @@
+{:global $isAdmin,$userid,$isLoggedIn,$user}
 <?php
 if(!$this->exists){
 	echo '<b>Error: file not found</b>';
@@ -17,22 +18,22 @@ $complexities = array(
 	'<img src="/wiki/gamelist/advanced.png" alt="advanced"> Advanced code complexity'
 );
 ?>
-<?php if($userid == $this->authorId || $isAdmin): ?>
-	<a href="?edit=<?=$this->id?>" id="editfile">Edit</a>
-<?php endif ?>
+{#if $userid == $this->authorId || $isAdmin}
+	<a href="?edit={id}" id="editfile">Edit</a>
+{#endif}
 
 <table id="fileDescription" cellspacing="0" cellpadding="0">
-	<tr><th colspan="2"><?=$this->name?> ( <a href="?dl=<?=$this->id?>" download>Download</a> )</th></tr>
-	<tr><td>Author</td><td><a href="?author=<?=$this->authorId?>"><?=$this->author?></a></td></tr>
-	<tr><td>Hits</td><td><?=$this->hits?></td></tr>
-	<tr><td>Downloads</td><td><?=$this->downloads?></td></tr>
-	<tr><td>Rating</td><td>+<span id="upvotes"><?=$this->upvotes?></span>/-<span id="downvotes"><?=$this->downvotes?></span>&nbsp;&nbsp;&nbsp;
-	<?php if($isLoggedIn): ?>
-		<a id="upvote" href="?rate=<?=$this->id?>&amp;dir=1">+</a> <a id="downvote" href="?rate=<?=$this->id?>&amp;dir=-1">-</a>
+	<tr><th colspan="2"><?=$this->name?> ( <a href="?dl={id}" download>Download</a> )</th></tr>
+	<tr><td>Author</td><td><a href="?author={authorId}">{author}</a></td></tr>
+	<tr><td>Hits</td><td>{hits}</td></tr>
+	<tr><td>Downloads</td><td>{downloads}</td></tr>
+	<tr><td>Rating</td><td>+<span id="upvotes">{upvotes}</span>/-<span id="downvotes">{downvotes}</span>&nbsp;&nbsp;&nbsp;
+	{#if $isLoggedIn}
+		<a id="upvote" href="?rate={id}&amp;dir=1">+</a> <a id="downvote" href="?rate={id}&amp;dir=-1">-</a>
 		<script type="text/javascript">
 			$(function(){
 				var vote = function(dir){
-					$.getJSON('?rate=<?=$this->id?>&dir='+dir+'&json').done(function(data){
+					$.getJSON('?rate={id}&dir='+dir+'&json').done(function(data){
 						$('#upvotes').text(data.upvotes);
 						$('#downvotes').text(data.downvotes);
 					});
@@ -47,39 +48,37 @@ $complexities = array(
 				});
 			});
 		</script>
-	<?php else: ?>
+	{#else}
 		<a href="/forum/ucp.php?mode=login">Login</a> to rate!
-	<?php endif ?>
+	{#endif}
 	</td></tr>
-	<tr><td>Added</td><td><?=date($user->data['user_dateformat'],$this->ts_added)?></td></tr>
-	<tr><td>Last&nbsp;Updated</td><td><?=date($user->data['user_dateformat'],$this->ts_updated)?></td></tr>
-	<tr><td>Description</td><td><?=str_replace("\n",'<br>',$this->description)?></td></tr>
-	<?php if($this->version > 0): ?>
-		<tr><td>Version</td><td><?=$versions[$this->version]?></td></tr>
-	<?php endif ?>
-	<?php if($this->complexity > 0): ?>
-		<tr><td>Complexity</td><td><?=$complexities[$this->complexity]?></td></tr>
-	<?php endif ?>
-	<?php if($this->forum_url != ''): ?>
-		<tr><td>Forum-Topic</td><td><a href="<?=$this->forum_url?>" target="_blank"><?=$this->forum_url?></a></td></tr>
-	<?php endif ?>
-	<?php if($this->repo_url != ''): ?>
-		<tr><td>Code-Repository</td><td><a href="<?=$this->repo_url?>" target="_blank"><?=$this->repo_url?></a></td></tr>
-	<?php endif ?>
+	<tr><td>Added</td><td>{date($user->data['user_dateformat'],{{ts_added}})}</td></tr>
+	<tr><td>Last&nbsp;Updated</td><td>{date($user->data['user_dateformat'],{{ts_updated}})}</td></tr>
+	<tr><td>Description</td><td>{!str_replace("\n",'<br>',htmlspecialchars({{description}}))}</td></tr>
+	{#if {{version}}}
+		<tr><td>Version</td><td>{!$versions[{{version}}]}</td></tr>
+	{#endif}
+	{#if {{complexity}}}
+		<tr><td>Complexity</td><td>{!$complexities[{{complexity}}]}</td></tr>
+	{#endif}
+	{#if {{forum_url}}}
+		<tr><td>Forum-Topic</td><td><a href="{forum_url}" target="_blank">{forum_url}</a></td></tr>
+	{#endif}
+	{#if {{repo_url}}}
+		<tr><td>Code-Repository</td><td><a href="{repo_url}" target="_blank">{repo_url}</a></td></tr>
+	{#endif}
 	<tr><td>Tags</td><td>
-	<?php
-		$cats = getCategoryList();
-		foreach($this->categories as $c){
-			echo '<a href="?tags=['.$c.']">'.$cats[$c].'</a> ';
-		}
-	?>
+	<?php $cats = getCategoryList(); ?>
+	{#foreach {{categories}} as $c}
+		<a href="?tags=[{$c}]">{!$cats[$c]}</a>
+	{#endforeach}
 	</td></tr>
 </table>
 <br>
 
 <h2>SCREENSHOTS</h2>
-<?php foreach($this->images as $i): ?>
-	<?php if($i != ''): ?>
-		<img src="uploads/screenshots/<?=$i?>" alt="<?=$this->name?>" class="fileDescImage">
-	<?php endif ?>
-<?php endforeach ?>
+{#foreach {{images}} as $i}
+	{#if $i}
+		<img src="uploads/screenshots/{$i}" alt="{name}" class="fileDescImage">
+	{#endif}
+{#endforeach}

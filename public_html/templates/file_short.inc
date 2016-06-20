@@ -1,18 +1,13 @@
-<?php
-if(!$this->exists){
-	return;
-}
-?>
 <div class="filecont">
-	<div class="name"><?=$this->name?></div>
-	<div class="author"><a href="?author=<?=$this->authorId?>"><?=$this->author?></a></div>
-	<a href="?file=<?=$this->id?>">
+	<div class="name">{name}</div>
+	<div class="author"><a href="?author={authorId}">{author}</a></div>
+	<a href="?file={id}">
 		<div class="popup">
-			<div class="description"><?=$this->description?></div>
-			<div class="downloads"><?=$this->downloads?></div>
-			<div class="rating">+<?=$this->upvotes?>/-<?=$this->downvotes?></div>
+			<div class="description">{description}</div>
+			<div class="downloads">{downloads}</div>
+			<div class="rating">+{upvotes}/-{downvotes}</div>
 		</div>
-		<img src="<?=$this->image?>" alt="<?=$this->name?>" class="<?=$class?>">
+		<img src="{image}" alt="{name}" class="{class}">
 	</a>
-	<input class="fileDlCheckbox" type="checkbox" data-id="<?=$this->id?>">
+	<input class="fileDlCheckbox" type="checkbox" data-id="{id}">
 </div>

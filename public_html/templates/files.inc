@@ -1,8 +1,5 @@
+{:default url,'?';limit,false}
 <?php
-$this->setDefault(array(
-	'url' => '?',
-	'limit' => false
-));
 
 $cursort = (int)request_var('sort',0);
 $curdir = (int)request_var('direction',0);
@@ -16,43 +13,47 @@ if(!preg_match("/^(\[\d+\])+$/",$tags)){
 
 <div id="fileSorter">
 	<div class="buttongroup">
-	<?php foreach(array('Date updated','Date added','Name','Author','Rating','Downloads') as $i => $s): ?>
-		<?php if($i == $cursort): ?>
-			<div class="button is-checked changestuff sortorder" data-num="<?=$i?>"><?=$s?></div>
-		<?php else: ?>
-			<a class="button changestuff sortorder" data-num="<?=$i?>" href="<?=$this->url.'&sort='.$i.'&direction='.$curdir.($this->limit?'&limit='.$curlimit:'').'&tags='.$tags?>"><?=$s?></a>
-		<?php endif ?>
-	<?php endforeach ?>
+	{#foreach array('Date updated','Date added','Name','Author','Rating','Downloads') as $i => $s}
+		{#if $i == $cursort}
+			<div class="button is-checked changestuff sortorder" data-num="{$i}">{$s}</div>
+		{#else}
+			<a class="button changestuff sortorder" data-num="<?=$i?>"
+				href="{url}&amp;sort={$i}&amp;direction={$curdir}{#if {{limit}}}&amp;limit={$curlimit}{#endif}&amp;tags={$tags}">{$s}</a>
+		{#endif}
+	{#endforeach}
 
 	</div>
 	<div class="buttongroup">';
-		<?php if($curdir == 0): ?>
+		{#if $curdir == 0}
 			<div class="button is-checked changestuff sortdir" data-num="0">▼</div>
-			<a class="button changestuff sortdir" data-num="1" href="<?=$this->url.'&sort='.$cursort.'&direction=1'.($limit?'&limit='.$curlimit:'').'&tags='.$tags?>">▲</a>
+			<a class="button changestuff sortdir" data-num="1"
+				href="{url}&amp;sort={$cursort}&amp;direction=1{#if {{limit}}}&amp;limit={$curlimit}{#endif}&amp;tags={$tags}">▲</a>
 		<?php else: ?>
-			<a class="button changestuff sortdir" data-num="0" href="<?=$this->url.'&sort='.$cursort.'&direction=0'.($limit?'&limit='.$curlimit:'').'&tags='.$tags?>">▼</a>
+			<a class="button changestuff sortdir" data-num="0"
+			href="{url}&amp;sort={$cursort}&amp;direction=0{#if {{limit}}}&amp;limit={$curlimit}{#endif}&amp;tags={$tags}">▼</a>
 			<div class="button is-checked changestuff sortdir" data-num="1">▲</div>';
 		<?php endif ?>
 	</div>
-	<?php if($this->limit): ?>
+	{#if {{limit}}}
 		<div class="buttongroup"><div class="button is-checked" style="cursor:default;">Limit:</div>
-			<?php foreach(array(10,20,50,100,200) as $l): ?>
-				<?php if($l == $curlimit): ?>
-					<div class="button is-checked changestuff sortlimit" data-num="<?=$l?>"><?=$l?></div>
-				<?php else: ?>
-					<a class="button changestuff sortlimit" data-num="<?=$l?>" href="<?=$this->url.'&sort='.$cursort.'&direction='.$curdir.'&limit='.$l.'&tags='.$tags?>"><?=$l?></a>
-				<?php endif ?>
-			<?php endforeach ?>
+			{#foreach array(10,20,50,100,200) as $l}
+				{#if $l == $curlimit}
+					<div class="button is-checked changestuff sortlimit" data-num="{$l}">{$l}</div>
+				{#else}
+					<a class="button changestuff sortlimit" data-num="<?=$l?>"
+						href="{url}&amp;sort={$cursort}&amp;direction={$curdir}&amp;limit={$l}&amp;tags={$tags}">{$l}</a>
+				{#endif}
+			{#endforeach}
 			
-			<?php if($curlimit == -1): ?>
+			{#if $curlimit == -1}
 				<div class="button is-checked changestuff sortlimit" data-num="-1">All</div>';
-			<?php else: ?>
-				<a class="button changestuff sortlimit" data-num="-1" href="<?=$this->url.'&sort='.$cursort.'&direction='.$curdir.'&limit=-1&tags='.$tags?>">All</a>';
-			<?php endif ?>
+			{#else}
+				<a class="button changestuff sortlimit" data-num="-1" href="{url}&amp;sort={$cursort}&amp;direction={$curdir}&amp;limit=-1&amp;tags={$tags}">All</a>
+			{#endif}
 		</div>
-	<?php else:
-		$curlimit = -1;
-	endif ?>
+	{#else}
+		<?php $curlimit = -1; ?>
+	{#endif}
 
 
 	<div class="buttongroup"><div class="button is-checked" style="cursor:default;">Tags:</div>
@@ -103,7 +104,7 @@ if(!preg_match("/^(\[\d+\])+$/",$tags)){
 </div>
 
 <div id="files">
-	<?php $this->renderChildren(); ?>
+	{:children}
 </div>
 
 <script type="text/javascript">
