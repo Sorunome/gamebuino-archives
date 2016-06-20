@@ -70,6 +70,20 @@ function getCategoryList(){
 	return $cats;
 }
 
+function getCategoryListDropdown($cid = 1,$pre = ''){
+	global $db;
+	$cats = array();
+	$result = $db->sql_query(query_escape("SELECT `id`,`name` FROM `archive_categories` WHERE `category`=%d",$cid));
+	while($cat = $db->sql_fetchrow($result)){
+		if((int)$cat['id'] != 1){
+			$cats['_'.$cat['id']] = $pre.'> '.$cat['name'];
+			$cats = $cats + getCategoryListDropdown((int)$cat['id'],$pre.'-');
+		}
+	}
+	$db->sql_freeresult($result);
+	return $cats;
+}
+
 function cutAtChar($string,$width = 150){
 	if(strlen($string) > $width){
 		$string = wordwrap($string, $width);
@@ -116,6 +130,108 @@ class Author{
 		return $t;
 	}
 }
+class Screenshots {
+	private static $uploadDir = 'uploads/screenshots/';
+	public static $maxfilesize = 20971520;
+	public static function delete($s){
+		if($s != ''){
+			@unlink(self::$uploadDir.$s);
+		}
+	}
+	private static function realUpload($tmpName,$fileName,$fid,$screenshotNum){
+		if(preg_match('#([ !\#$%\'()+-.\d;=@-\[\]-{}~]+)\.(\w+)$#',$fileName,$name)){
+			if (in_array(strtolower($name[2]), array('png', 'gif', 'jpg', 'jpeg', 'bmp', 'wbmp'))) {
+				$uploadName = self::$uploadDir.$fid.'.'.$screenshotNum.'.'.strtolower($name[2]);
+				if(move_uploaded_file($tmpName,$uploadName)){
+					if (filesize($uploadName) < self::$maxfilesize) {
+						if ($j = @imagecreatefromstring($h = file_get_contents($uploadName)) or substr($h, 0, 2) == 'BM') {
+							return strtolower($name[2]);
+						}else{
+							unlink($uploadName);
+						}
+					}else{
+						unlink($uploadName);
+					}
+				}
+			}
+		}
+		return false;
+	}
+	public static function upload($fid,$i,$filename){
+		global $db;
+		$html = 'Error uploading file '.($i+1).'. Maybe it isn\'t an image or it is too large?<br>';
+		if(sizeof($_FILES)>0 && isset($_FILES['image'.$i]) && !is_array($_FILES['image'.$i]['name']) && $_FILES['image'.$i]['name'] !== ''){
+			$uploadFileName = $_FILES['image'.$i]['name'];
+			$db->sql_freeresult($db->sql_query(query_escape("UPDATE `archive_files` SET `screenshotNum`=`screenshotNum`+1 WHERE `id`=%d",$fid)));
+			$result = $db->sql_query(query_escape("SELECT `screenshotNum` FROM `archive_files` WHERE `id`=%d",$fid));
+			if($screenshotNumId = $db->sql_fetchrow($result)){
+				$screenshotNum = (int)$screenshotNumId['screenshotNum'];
+				if($extension = self::realUpload($_FILES['image'.$i]['tmp_name'],$uploadFileName,$fid,$screenshotNum)){
+					$html = '';
+					$filename = $fid.'.'.$screenshotNum.'.'.$extension;
+				}
+			}
+			$db->sql_freeresult($result);
+		}
+		return array($filename,$html);
+	}
+}
+class Upload {
+	private static $uploadZipDir = 'uploads/zip/';
+	private static $maxfilesize = 20971520;
+	public static function getZipName($fid){
+		return self::$uploadZipDir.$fid.'.zip';
+	}
+	private static function realUpload($tmpName,$fileName,$fid){
+		if(preg_match('#([ !\#$%\'()+-.\d;=@-\[\]-{}~]+)\.(\w+)$#',$fileName,$name)){
+			$extension = strtolower($name[2]);
+			if(in_array($extension,array('zip'))){
+				$name = self::getZipName($fid);
+				$oldName = self::$uploadZipDir.$fid.'.old.zip';
+				if(file_exists($name)){
+					rename($name,$oldName);
+				}
+				if(move_uploaded_file($tmpName,$name)){
+					$fh = @fopen($name,'r');
+					$blob = fgets($fh,5);
+					fclose($fh);
+					if(strpos($blob,'PK') === 0){ // this is a zip file!
+						if(filesize($name) < self::$maxfilesize){
+							$zip = new ZipArchive();
+							if($zip->open($name)){
+								if($zip->numFiles > 0){
+									$zip->close();
+									if(file_exists($oldName)){
+										unlink($oldName);
+									}
+									return true;
+								}
+								$zip->close();
+							}
+						}
+					}
+				}
+				if(file_exists($name)){
+					unlink($name);
+				}
+				rename($oldName,$name);
+			}
+		}
+		return false;
+	}
+	public static function zipFile($fid){
+		global $db;
+		if(sizeof($_FILES)>0 && isset($_FILES['zip']) && !is_array($_FILES['zip']['name'])){
+			$fileName = $_FILES['zip']['name'];
+			if(self::realUpload($_FILES['zip']['tmp_name'],$fileName,$fid)){
+				$db->sql_freeresult($db->sql_query(query_escape("UPDATE `archive_files` SET `filename`='%s',`ts_updated`=FROM_UNIXTIME('%s') WHERE `id`=%d",$fileName,time(),$fid)));
+				return true;
+			}
+		}
+		return false;
+	}
+}
+
 class File{
 	private $id = -1;
 	private $authorId = -1;
@@ -228,7 +344,7 @@ class File{
 			'hits' => $this->hits,
 			'downloads' => $this->downloads,
 			'ts_added' => $this->ts_added,
-			'ts_udated' => $this->ts_updated,
+			'ts_updated' => $this->ts_updated,
 			'version' => $this->version,
 			'complexity' => $this->complexity,
 			'description' => $this->description,
@@ -296,10 +412,109 @@ class File{
 		$db->sql_freeresult($db->sql_query(query_escape("UPDATE `archive_files` SET `upvotes`=%d,`downvotes`=%d,`votes`='%s' WHERE `id`=%d",$this->upvotes,$this->downvotes,json_encode($votes),$this->id)));
 		return $this->rate(0);
 	}
+	private function validate_save_vars($vars){
+		global $db;
+		if($vars['name'] != '' && $vars['complexity'] >= 0 && $vars['complexity'] <= 3 && $vars['version'] >= 0 && $vars['version'] <= 3 && preg_match("/^(\[\d+\])+$/",$vars['category'])){
+			foreach(explode('][',substr($vars['category'],1,strlen($vars['category'])-2)) as $c){
+				$result = $db->sql_query(query_escape("SELECT `id` FROM `archive_categories` WHERE `id`=%d",$c));
+				if(!$db->sql_fetchrow($result)){
+					$db->sql_freeresult($result);
+					return false;
+				}
+				$db->sql_freeresult($result);
+			}
+			return true;
+		}
+		return false;
+	}
+	private function imagearray_save_vars($vars){
+		$fileArray = $this->images;
+		for($i = count($fileArray);$i < 4;$i++){
+			$fileArray[] = '';
+		}
+		$html = '';
+		for($i = 0;$i < 4;$i++){
+			if($vars['delimage'.$i] == 'true'){
+				if($fileArray[$i] != ''){
+					Screenshots::delete($fileArray[$i]);
+					$fileArray[$i] = '';
+				}
+			}
+			if(sizeof($_FILES)>0 && isset($_FILES['image'.$i]) && !is_array($_FILES['image'.$i]['name']) && $_FILES['image'.$i]['name'] !== ''){
+				$a = Screenshots::upload($this->id,$i,$fileArray[$i]);
+				if($a[0] != $fileArray[$i]){ // delete potentially old files
+					Screenshots::delete($fileArray[$i]);
+					$fileArray[$i] = $a[0];
+				}
+				$html .= $a[1];
+			}
+		}
+		return array($fileArray,$html);
+	}
+	public function save(){
+		global $userid,$isAdmin,$db;
+		if(!($userid == $this->authorId || $isAdmin || !$this->exists())){
+			return '';
+		}
+		$newFile = !$this->exists();
+		$vars = array_merge(array(
+			'name' => '',
+			'description' => '',
+			'forum_url' => '',
+			'repo_url' => '',
+			'version' => 0,
+			'complexity' => 0,
+			'category' => '',
+			'delimage0' => 'false',
+			'delimage1' => 'false',
+			'delimage2' => 'false',
+			'delimage3' => 'false'
+		),$_POST);
+		$vars['complexity'] = (int)$vars['complexity'];
+		$vars['version'] = (int)$vars['version'];
+		$vars['forum_url'] = getUrl_safe($vars['forum_url']);
+		$vars['repo_url'] = getUrl_safe($vars['repo_url']);
+		if(!$this->validate_save_vars($vars)){
+			return 'Missing required fields';
+		}
+		if(!$this->exists()){
+			if(sizeof($_FILES)>0 && isset($_FILES['zip']) && !is_array($_FILES['zip']['name']) && $_FILES['zip']['name'] !== ''){
+				// we add the file here and upload it later!
+				$db->sql_query(query_escape("INSERT INTO `archive_files` (`author`,`description`,`images`,`forum_url`,`repo_url`,`name`,`votes`,`category`,`filename`) VALUES ('%s','','[]','','','','{}','','')",$userid));
+				$this->id = $db->sql_nextid();
+			}else{
+				return 'Missing zip file!';
+			}
+		}
+		$s = '';
+		if(sizeof($_FILES)>0 && isset($_FILES['zip']) && !is_array($_FILES['zip']['name']) && $_FILES['zip']['name'] !== ''){
+			if(!Upload::zipFile($this->id)){
+				$s .= "Couldn't upload zip file, maybe it isn't a zip?";
+				if($newFile){
+					$db->sql_freeresult($db->sql_query(query_escape("DELETE FROM `archive_files` WHERE `id`=%d",$this->id)));
+					return $s;
+				}
+				$s .= '<br>';
+			}
+		}
+		$imagesarray = $this->imagearray_save_vars($vars);
+		$db->sql_freeresult($db->sql_query(query_escape(
+			"UPDATE `archive_files` SET `name`='%s',`description`='%s',`forum_url`='%s',`repo_url`='%s',`version`=%d,`complexity`=%d,`category`='%s',`images`='%s' WHERE `id`=%d",
+				$vars['name'],$vars['description'],$vars['forum_url'],$vars['repo_url']
+				,$vars['version'],$vars['complexity'],$vars['category'],json_encode($imagesarray[0])
+				,$this->id)));
+		$s .= $imagesarray[1];
+		foreach(array('name','description','forum_url','repo_url','version','complexity') as $k){
+			$this->$k = $vars[$k];
+		}
+		$s .= 'Saved file! <a href="?file='.$this->id.'">view it</a>';
+		return $s;
+	}
 }
 class Files{
 	private $files = array();
-	private function getFilesSQL($where = '',$limit = false){
+	private $limit = false;
+	private function getFilesSQL($where = ''){
 		$s = "SELECT ".FILE_SELECT.' ';
 		$cursort = (int)request_var('sort',0);
 		$curdir = (int)request_var('direction',0);
@@ -342,7 +557,7 @@ class Files{
 			$where = 'WHERE '.$where;
 		}
 		$s .= $where.' '.$sortcolumns[$cursort].' '.$dirs[$curdir];
-		if($limit){
+		if($this->limit){
 			$curlimit = (int)request_var('limit',10);
 			if($curlimit != -1){
 				if($curlimit < 1){
@@ -355,7 +570,8 @@ class Files{
 	}
 	public function __construct($where = '',$limit = false){
 		global $db;
-		$result = $db->sql_query($this->getFilesSQL($where,$limit));
+		$this->limit = $limit;
+		$result = $db->sql_query($this->getFilesSQL($where));
 		$this->files = array();
 		while($gamefile = $db->sql_fetchrow($result)){
 			$this->files[] = new File($gamefile);
@@ -372,6 +588,7 @@ class Files{
 	}
 	public function template(){
 		$t = new Template('files.inc');
+		$t->limit = $this->limit;
 		$t2 = array();
 		foreach($this->files as $f){
 			$t2[] = $f->template_short();
