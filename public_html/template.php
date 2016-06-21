@@ -32,7 +32,7 @@ class Template {
 		
 		$f = preg_replace('/{{(\w[\w$\[\]\->]*)}}/','\$this->$1',$f);
 
-		$f = preg_replace_callback('/{(?:([!#:])([^\s][^}]+)|([\w$][\w$\[\]\->\(\)]*))}/',function($match){
+		$f = preg_replace_callback('/{(?:([!#:])([^\s][^}]+)|([\w$][\w$\[\]\->\(\)+\-*\/]*))}/',function($match){
 			switch($match[1]){
 				case '':
 					if($match[3][0] == '$' || strpos($match[3],'(') !== false){

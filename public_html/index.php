@@ -268,4 +268,3 @@ if(sizeof($templates) > 0){
 		}
 	}
 }
-?>

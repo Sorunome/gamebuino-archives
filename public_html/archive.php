@@ -1,4 +1,5 @@
 <?php
+include_once('config.php');
 include_once('template.php');
 session_start();
 define('IN_PHPBB', true);

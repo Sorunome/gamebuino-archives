@@ -4,8 +4,8 @@
 	<a href="?file={id}">
 		<div class="popup">
 			<div class="description">{description}</div>
-			<div class="downloads">{downloads}</div>
-			<div class="rating">+{upvotes}/-{downvotes}</div>
+			<div class="downloads">Downloads: {downloads}</div>
+			<div class="rating">Rating: +{upvotes}/-{downvotes}</div>
 		</div>
 		<img src="{image}" alt="{name}" class="{class}">
 	</a>

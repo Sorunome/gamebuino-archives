@@ -7,5 +7,6 @@ buildserver/frontend/__pycache__
 public_html/tmp
 public_html/uploads
 public_html/cache
+public_html/config.php
 forum
 navbar
