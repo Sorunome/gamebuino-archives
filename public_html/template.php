@@ -31,19 +31,14 @@ class Template {
 		$f = file_get_contents($this->_templateDir.$this->_file);
 		
 		$f = preg_replace('/{{(\w[\w$\[\]\->]*)}}/','\$this->$1',$f);
-		$f = preg_replace_callback('/{([!#:]?)([^\s][^}]+)}/',function($match){
-			if($match[1] == '' && strpos($match[2],"\n") !== false){ // only {:stuff} is allowed to have linebreaks
-				return $match[0];
-			}
+
+		$f = preg_replace_callback('/{(?:([!#:])([^\s][^}]+)|([\w$][\w$\[\]\->\(\)]*))}/',function($match){
 			switch($match[1]){
 				case '':
-					if(strpos($match[2],';') !== false || strpos($match[2],':') !== false){
-						return $match[0];
+					if($match[3][0] == '$' || strpos($match[3],'(') !== false){
+						return '<?=htmlspecialchars('.$match[3].')?>';
 					}
-					if($match[2][0] == '$' || strpos($match[2],'(') !== false){
-						return '<?=htmlspecialchars('.$match[2].')?>';
-					}
-					return '<?=htmlspecialchars($this->'.$match[2].')?>';
+					return '<?=htmlspecialchars($this->'.$match[3].')?>';
 				case '!':
 					if($match[2][0] == '$' || strpos($match[2],'(') !== false){
 						return '<?='.$match[2].'?>';
