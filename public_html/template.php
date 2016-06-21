@@ -28,69 +28,74 @@ class Template {
 		if(!file_exists($this->_templateDir.$this->_file)){
 			throw new Exception("Couldn't find template file {$this->_templateDir}{$this->_file} !");
 		}
-		$lines = explode("\n",file_get_contents($this->_templateDir.$this->_file));
-		foreach($lines as &$l){
-			if(strpos($l,'{') !== false){ // lets do some more stuff!
-				$l = preg_replace('/{{(\w[\w$\[\]\->]*)}}/','\$this->$1',$l);
-				$l = preg_replace_callback('/{([!#:]?)([^}]+)}/',function($match){
-					switch($match[1]){
-						case '':
-							if(strpos($match[2],';') !== false || strpos($match[2],':') !== false){
-								return $match[0];
-							}
-							if($match[2][0] == '$' || strpos($match[2],'(') !== false){
-								return '<?=htmlspecialchars('.$match[2].')?>';
-							}
-							return '<?=htmlspecialchars($this->'.$match[2].')?>';
-						case '!':
-							if($match[2][0] == '$' || strpos($match[2],'(') !== false){
-								return '<?='.$match[2].'?>';
-							}
-							return '<?=$this->'.$match[2].'?>';
-						case '#':
-							$match = explode(' ',$match[2],2);
-							switch($match[0]){
-								case 'if':
-								case 'while':
-								case 'for':
-								case 'foreach':
-								case 'switch':
-									return '<?php '.$match[0].'('.$match[1].'): ?>';
-								case 'case':
-									return '<?php case '.$match[1].': ?>';
-								case 'else':
-								case 'default':
-									return '<?php '.$match[0].': ?>';
-								case 'endif':
-								case 'endwhile':
-								case 'endfor':
-								case 'endforeach':
-								case 'endswitch':
-									return '<?php '.$match[0].'; ?>';
-							}
-							return '';
-						case ':':
-							$match = explode(' ',$match[2],2);
-							switch($match[0]){
-								case 'global':
-									return '<?php global '.$match[1].'; ?>';
-								case 'children':
-									return '<?php $this->_renderChildren(); ?>';
-								case 'default':
-									$s = '';
-									foreach(explode(';',$match[1]) as $var){
-										$a = explode(',',$var);
-										$s .= '"'.trim($a[0]).'" => '.$a[1].',';
-									}
-									
-									return '<?php $this->_setDefault(array('.rtrim($s,',').')); ?>';
-							}
+		$f = file_get_contents($this->_templateDir.$this->_file);
+		
+		$f = preg_replace('/{{(\w[\w$\[\]\->]*)}}/','\$this->$1',$f);
+		$f = preg_replace_callback('/{([!#:]?)([^\s][^}]+)}/',function($match){
+			if($match[1] == '' && strpos($match[2],"\n") !== false){ // only {:stuff} is allowed to have linebreaks
+				return $match[0];
+			}
+			switch($match[1]){
+				case '':
+					if(strpos($match[2],';') !== false || strpos($match[2],':') !== false){
+						return $match[0];
+					}
+					if($match[2][0] == '$' || strpos($match[2],'(') !== false){
+						return '<?=htmlspecialchars('.$match[2].')?>';
+					}
+					return '<?=htmlspecialchars($this->'.$match[2].')?>';
+				case '!':
+					if($match[2][0] == '$' || strpos($match[2],'(') !== false){
+						return '<?='.$match[2].'?>';
+					}
+					return '<?=$this->'.$match[2].'?>';
+				case '#':
+					$match = explode(' ',$match[2],2);
+					switch($match[0]){
+						case 'if':
+						case 'while':
+						case 'for':
+						case 'foreach':
+						case 'switch':
+							return '<?php '.$match[0].'('.$match[1].'): ?>';
+						case 'case':
+							return '<?php case '.$match[1].': ?>';
+						case 'else':
+						case 'default':
+							return '<?php '.$match[0].': ?>';
+						case 'endif':
+						case 'endwhile':
+						case 'endfor':
+						case 'endforeach':
+						case 'endswitch':
+							return '<?php '.$match[0].'; ?>';
 					}
 					return '';
-				},$l);
+				case ':':
+					$match = preg_split('/[\s]+/',$match[2],2);
+					switch($match[0]){
+						case 'global':
+							return '<?php global '.$match[1].'; ?>';
+						case 'children':
+							return '<?php $this->_renderChildren(); ?>';
+						case 'default':
+							$s = '';
+							foreach(explode(';',$match[1]) as $var){
+								$a = explode(',',$var);
+								$s .= '"'.trim($a[0]).'" => '.$a[1].',';
+							}
+							
+							return '<?php $this->_setDefault(array('.rtrim($s,',').')); ?>';
+						case 'return':
+							return '<?php return'.(isset($match[1])?' '.$match[1]:'').'; ?>';
+						case 'set':
+							$match = preg_split('/[\s]+/',$match[1],2);
+							return '<?php '.$match[0].'='.$match[1].'; ?>';
+					}
 			}
-		}
-		$f = implode("\n",$lines);
+			return '';
+		},$f);
+		
 		if(file_put_contents($this->_cacheDir.md5($this->_file).'.inc',$f)){
 			$this->render();
 		}else{

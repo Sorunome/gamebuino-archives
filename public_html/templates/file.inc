@@ -1,23 +1,21 @@
 {:global $isAdmin,$userid,$isLoggedIn,$user}
-<?php
-if(!$this->exists){
-	echo '<b>Error: file not found</b>';
-	return;
-}
-$versions = array(
+{#if !{{exists}}}
+	<b>Error: file not found</b>
+	{:return}
+{#endif}
+{:set $versions array(
 	'',
 	'<img src="/wiki/gamelist/alpha.png" alt="alpha"> Alpha',
 	'<img src="/wiki/gamelist/beta.png" alt="beta"> Beta',
 	'<img src="/wiki/gamelist/release.png" alt="release"> Finished'
-);
-
-$complexities = array(
+)}
+{:set $complexities array(
 	'',
 	'<img src="/wiki/gamelist/basic.png" alt="basic"> Basic code complexity',
 	'<img src="/wiki/gamelist/intermediate.png" alt="intermediate"> Intermediate code complexity',
 	'<img src="/wiki/gamelist/advanced.png" alt="advanced"> Advanced code complexity'
-);
-?>
+)}
+
 {#if $userid == $this->authorId || $isAdmin}
 	<a href="?edit={id}" id="editfile">Edit</a>
 {#endif}

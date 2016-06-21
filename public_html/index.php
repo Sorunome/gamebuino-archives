@@ -7,9 +7,8 @@ function panic(){
 }
 
 function getDlFiles($fid){
-	global $upload;
 	$zip = new ZipArchive();
-	if($zip->open($upload->getZipName($fid)) !== false){
+	if($zip->open(Upload::getZipName($fid)) !== false){
 		$a = array();
 		$allFiles = array();
 		if(($s = $zip->getFromName('download.txt')) !== false){
@@ -114,13 +113,13 @@ if(request_var('file',false)){
 			header('Content-Type: application/zip');
 			header('Content-Disposition: attachment; filename='.$gamefile['filename']);
 			if(isset($_GET['all'])){
-				$realzip = $upload->getZipName($fid);
+				$realzip = Upload::getZipName($fid);
 			}else{
 				$dlFiles = getDlFiles($fid) or panic();
 				$newzip = new ZipArchive();
 				$oldzip = new ZipArchive();
 				$realzip = 'tmp/'.generateRandomString().time().'.zip';
-				if($oldzip->open($upload->getZipName($fid))){
+				if($oldzip->open(Upload::getZipName($fid))){
 					if($newzip->open($realzip, ZIPARCHIVE::CREATE)){
 						foreach($dlFiles as $f){
 							$newzip->addFromString($f,$oldzip->getFromName($f));
@@ -166,6 +165,7 @@ if(request_var('file',false)){
 			$db->sql_freeresult($result);
 		}
 		$dlFiles = getDlFilesMult($fids);
+		
 		if(isset($_GET['info'])){
 			header('Content-Type:application/json');
 			echo json_encode(array('stability' => $dlFiles[0]));
@@ -177,7 +177,7 @@ if(request_var('file',false)){
 			$realzip = 'tmp/'.generateRandomString().time().'.zip';
 			if($newzip->open($realzip, ZIPARCHIVE::CREATE)){
 				foreach($dlFiles[1] as $fid => $files){
-					if($oldzip->open($upload->getZipName($fid))){
+					if($oldzip->open(Upload::getZipName($fid))){
 						foreach($files as $oldf => $newf){
 							$newzip->addFromString($newf,$oldzip->getFromName($oldf));
 						}

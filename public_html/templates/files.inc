@@ -1,15 +1,11 @@
 {:default url,'?';limit,false}
-<?php
-
-$cursort = (int)request_var('sort',0);
-$curdir = (int)request_var('direction',0);
-$curlimit = (int)request_var('limit',50);
-$tags = request_var('tags','[0]');
-if(!preg_match("/^(\[\d+\])+$/",$tags)){
-	$tags = '[0]';
-}
-// $tags is now safe html due to the regex
-?>
+{:set $cursort (int)request_var('sort',0)}
+{:set $curdir (int)request_var('direction',0)}
+{:set $curlimit (int)request_var('limit',50)}
+{:set $tags request_var('tags','[0]')}
+{#if !preg_match("/^(\[\d+\])+$/",$tags)}
+	{:set $tags '[0]'}
+{#endif}
 
 <div id="fileSorter">
 	<div class="buttongroup">
@@ -28,11 +24,11 @@ if(!preg_match("/^(\[\d+\])+$/",$tags)){
 			<div class="button is-checked changestuff sortdir" data-num="0">▼</div>
 			<a class="button changestuff sortdir" data-num="1"
 				href="{url}&amp;sort={$cursort}&amp;direction=1{#if {{limit}}}&amp;limit={$curlimit}{#endif}&amp;tags={$tags}">▲</a>
-		<?php else: ?>
+		{#else}
 			<a class="button changestuff sortdir" data-num="0"
 			href="{url}&amp;sort={$cursort}&amp;direction=0{#if {{limit}}}&amp;limit={$curlimit}{#endif}&amp;tags={$tags}">▼</a>
 			<div class="button is-checked changestuff sortdir" data-num="1">▲</div>';
-		<?php endif ?>
+		{#endif}
 	</div>
 	{#if {{limit}}}
 		<div class="buttongroup"><div class="button is-checked" style="cursor:default;">Limit:</div>
@@ -52,7 +48,7 @@ if(!preg_match("/^(\[\d+\])+$/",$tags)){
 			{#endif}
 		</div>
 	{#else}
-		<?php $curlimit = -1; ?>
+		{:set $curlimit -1}
 	{#endif}
 
 

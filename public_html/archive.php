@@ -92,6 +92,10 @@ function cutAtChar($string,$width = 150){
 	return $string;
 }
 
+function getHelpHTML($s){
+	return '<div class="help"><img src="help_icon.png"><div class="text">'.$s.'</div></div>';
+}
+
 class Author{
 	private $id = -1;
 	private $name = '';
