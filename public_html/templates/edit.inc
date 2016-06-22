@@ -31,7 +31,7 @@
 			{!getHelpHTML('The name of the file as it will be displayed')}<br>
 	File type:
 	{#foreach array('zip','Github') as $i => $v}
-		<label><input type="radio" name="file_type" value="{$i}" {#if $i==0}checked="checked"{#endif}> {$v}</label>&nbsp;&nbsp;
+		<label><input type="radio" name="file_type" value="{$i}" {#if $i=={{file_type['type']}}}checked="checked"{#endif}> {$v}</label>&nbsp;&nbsp;
 	{#endforeach}<br>
 	<div class="file_type_content">
 		Please enable JavaScript!
@@ -123,6 +123,40 @@
 	
 	// github auth stuff
 	$(function(){
+		var buildRepo_single = function(r,checkbox){
+				if(checkbox === undefined){
+					checkbox = true;
+				}
+				var current = r.full_name=={!json_encode({{file_type['github_repo']}})};
+				return $('<div>').css({
+					border:'1px solid black',
+					borderRadius:5,
+					padding:5
+				}).append(
+					$('<label>').append(
+						[
+							(checkbox?
+							$('<input>').attr({
+								type:'radio',
+								name:'github_repo'
+							}).attr((current?'checked':'false'),'checked').val(r.full_name)
+							:'')
+						],' ',
+						$('<strong>').text(r.name),' ',
+						$('<a>').text('(visit)').attr({
+							href:r.html_url,
+							target:'_blank'
+						}),'<br>',$('<span>').text(r.description)
+					)
+				);
+			},
+			buildRepos = function(data){
+				$('#github_repos').empty().append(
+					$.map(data.repos,function(r){
+						return buildRepo_single(r);
+					})
+				);
+			};
 		$('#file_type_content_1').on('switch',function(){
 			if(this.dataset.loaded == 0){
 				$(this).children('div').addClass('hidden');
@@ -136,31 +170,32 @@
 					}
 					$('#github_avatar').attr('src',data.avatar);
 					$('#github_username').text(data.username);
-					$('#github_repos').empty().append(
-						$.map(data.repos,function(r){
-							return $('<div>').css({
-								border:'1px solid black',
-								borderRadius:5,
-								padding:5
-							}).append(
-								$('<label>').append(
-									$('<input>').attr({
-										type:'radio',
-										name:'github_repo'
-									}).val(r.id),' ',
-									$('<strong>').text(r.name),' ',
-									$('<a>').text('(visit)').attr({
-										href:r.html_url,
-										target:'_blank'
-									}),'<br>',$('<span>').text(r.description)
-								)
-							);
-						})
-					);
+					{#if {{exists}}}
+						$('#github_repos').empty().append(
+							$.map(data.repos,function(r){
+								var current = r.full_name=={!json_encode({{file_type['github_repo']}})};
+								if(current){
+									return [
+										buildRepo_single(r,false),
+										$('<input>').attr({
+											'type':'hidden',
+											'name':'github_repo'
+										}).val(r.full_name),
+										$('<a>').text('Change Repo').attr('href','#').click(function(e){
+											e.preventDefault();
+											buildRepos(data);
+										})
+									];
+								}
+							})
+						);
+					{#else}
+						buildRepos(data);
+					{#endif}
 					$('#github_reposform').removeClass('hidden');
 				});
 			}
-		})
+		});
 		//userinfo
 		$('#github_login').click(function(e){
 			e.preventDefault();
@@ -175,6 +210,9 @@
 				$elem.trigger('switch');
 			}
 		});
+		if($('input[type=radio][name=file_type]:checked').val() == 1){
+			$('#file_type_content_1').trigger('switch');
+		}
 	});
 	
 	// category picker

@@ -3,10 +3,12 @@ include_once('archive.php');
 class GithubUser {
 	private $id = -1;
 	private $uid = -1;
+	private $gid = -1;
 	private $token = '';
 	private $username = '';
 	private $avatar = '';
 	private $repos_url = '';
+	private $repo_url = '';
 	private $repos = array();
 	private function api_get($url,$token = true){
 		$s = @file_get_contents($url,false,stream_context_create(array(
@@ -30,6 +32,7 @@ class GithubUser {
 		$this->username = $json['login'];
 		$this->avatar = $json['avatar_url'];
 		$this->repos_url = $json['repos_url'];
+		$this->gid = $json['id'];
 	}
 	private function populate_repos(){
 		if($this->username == ''){
@@ -42,7 +45,7 @@ class GithubUser {
 		$this->repos = array();
 		foreach($json as $j){
 			$this->repos[] = array(
-				'id' => $j['id'],
+				'full_name' => $j['full_name'],
 				'name' => $j['name'],
 				'html_url' => $j['html_url'],
 				'description' => $j['description']
@@ -82,6 +85,26 @@ class GithubUser {
 		}
 		$this->token = $token;
 	}
+	public function setRepo($repo,$fid){
+		global $db;
+		$this->populate_basic();
+		if(!$this->exists()){
+			return false;
+		}
+		$json = $this->api_get('https://api.github.com/repos/'.$repo,false);
+		if(!$json || !isset($json['name'])){
+			return false;
+		}
+		if($json['owner']['id'] != $this->gid){
+			return false;
+		}
+		$this->repo_url = $json['html_url'];
+		$db->sql_freeresult($db->sql_query(query_escape("UPDATE `archive_files` SET `git_url`='%s',`github_repo`='%s' WHERE `id`=%d",$json['git_url'],$json['full_name'],$fid)));
+		return true;
+	}
+	public function getRepoUrl(){
+		return $this->repo_url;
+	}
 	public function getInfo(){
 		$this->populate_basic();
 		if(!$this->exists()){
@@ -98,8 +121,9 @@ class GithubUser {
 		);
 	}
 }
-
-if(isset($_GET['login'])){
+if(isset($included) && $included){
+	return;
+}elseif(isset($_GET['login'])){
 	$t = new Template('popup.inc');
 	$t->title = 'Login with Github';
 	$t2 = new Template('github_login.inc');
@@ -108,29 +132,32 @@ if(isset($_GET['login'])){
 	$t->render();
 }elseif(isset($_GET['callback'])){
 	$code = $_GET['code'];
-	$json = json_decode(file_get_contents('https://github.com/login/oauth/access_token',false,stream_context_create(array(
-		'http' => array(
-			'header' => "Content-type: application/x-www-form-urlencoded\r\nAccept: application/json\r\n",
-			'method' => 'POST',
-			'content' => http_build_query(array(
-				'client_id' => $github_oauth_client_id,
-				'client_secret' => $github_oauth_client_secret,
-				'code' => $code,
-				'accept' => 'json'
-			))
-		)
-	))),true);
 	$t = new Template('popup.inc');
 	$t->title = 'Login with Github';
 	$t2 = new Template('github_login_done.inc');
 	$t2->success = false;
-	if($json){
-		foreach(explode(',',$json['scope']) as $s){
-			if($s == 'write:repo_hook'){
-				$u = new GithubUser($userid);
-				$u->setToken($json['access_token']);
-				$t2->success = true;
-				break;
+	
+	if($isLoggedIn){
+		$json = json_decode(file_get_contents('https://github.com/login/oauth/access_token',false,stream_context_create(array(
+			'http' => array(
+				'header' => "Content-type: application/x-www-form-urlencoded\r\nAccept: application/json\r\n",
+				'method' => 'POST',
+				'content' => http_build_query(array(
+					'client_id' => $github_oauth_client_id,
+					'client_secret' => $github_oauth_client_secret,
+					'code' => $code,
+					'accept' => 'json'
+				))
+			)
+		))),true);
+		if($json){
+			foreach(explode(',',$json['scope']) as $s){
+				if($s == 'write:repo_hook'){
+					$u = new GithubUser($userid);
+					$u->setToken($json['access_token']);
+					$t2->success = true;
+					break;
+				}
 			}
 		}
 	}

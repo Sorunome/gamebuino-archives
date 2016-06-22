@@ -11,7 +11,7 @@ if(isset($request)){
 	$request->enable_super_globals();
 }
 
-define('FILE_EXTRA_FRAGMENT',"t1.`filename`,t1.`category`,t1.`forum_url`,t1.`repo_url`,t1.`version`,t1.`complexity`,UNIX_TIMESTAMP(t1.`ts_updated`) AS `ts_updated`,UNIX_TIMESTAMP(t1.`ts_added`) AS `ts_added`,t1.`hits`");
+define('FILE_EXTRA_FRAGMENT',"t1.`filename`,t1.`category`,t1.`forum_url`,t1.`repo_url`,t1.`version`,t1.`complexity`,UNIX_TIMESTAMP(t1.`ts_updated`) AS `ts_updated`,UNIX_TIMESTAMP(t1.`ts_added`) AS `ts_added`,t1.`hits`,t1.`file_type`,t1.`git_url`,t1.`github_repo`");
 define('FILE_SELECT',"t1.`id`,t1.`author`,t1.`description`,t1.`images`,t1.`name`,t1.`downloads`,t1.`upvotes`,t1.`downvotes`,t2.`username` FROM `archive_files` AS t1 INNER JOIN ".USERS_TABLE." AS t2 ON t1.`author` = t2.`user_id`");
 define('FILE_EXTRA_SELECT',FILE_EXTRA_FRAGMENT." FROM `archive_files` AS t1 INNER JOIN ".USERS_TABLE." AS t2 on t1.`author` = t2.`user_id`");
 define('AUTHOR_SELECT',"t1.`username`,t1.`user_id`,COUNT(t2.`id`) AS `files` FROM ".USERS_TABLE." AS t1 INNER JOIN `archive_files` AS t2 ON t1.`user_id`=t2.`author`");
@@ -258,6 +258,7 @@ class File{
 	private $ts_updated = 0;
 	private $ts_added = 0;
 	private $hits = 0;
+	private $file_type = array('type' => 0);
 	private function populate_extra($obj){
 		$this->filename = $obj['filename'];
 		$this->categories = array();
@@ -271,6 +272,13 @@ class File{
 		$this->ts_updated = (int)$obj['ts_updated'];
 		$this->ts_added = (int)$obj['ts_added'];
 		$this->hits = (int)$obj['hits'];
+		$this->file_type = array(
+			'type' => (int)$obj['file_type']
+		);
+		if($this->file_type['type'] == 1){ // github!
+			$this->file_type['git_url'] = $obj['git_url'];
+			$this->file_type['github_repo'] = $obj['github_repo'];
+		}
 		
 		$this->extra = true;
 	}
@@ -356,7 +364,8 @@ class File{
 			'forum_url' => $this->forum_url,
 			'repo_url' => $this->repo_url,
 			'images' => $this->images,
-			'categories' => $this->categories
+			'categories' => $this->categories,
+			'file_type' => $this->file_type
 		));
 	}
 	public function template_short(){
@@ -432,6 +441,39 @@ class File{
 		}
 		return false;
 	}
+	private function validate_save_filevars($vars){
+		switch($vars['file_type']){
+			case 0: // zip upload
+				return sizeof($_FILES)>0 && isset($_FILES['zip']) && !is_array($_FILES['zip']['name']) && $_FILES['zip']['name'] !== '';
+			case 1: // github
+				return $vars['github_repo'] != '';
+		}
+		return false;
+	}
+	private function upload_save(&$vars){
+		global $db,$userid;
+		if(!$this->validate_save_filevars($vars)){
+			return false;
+		}
+		$success = false;
+		switch($vars['file_type']){
+			case 0:
+				$success = Upload::zipFile($this->id);
+				break;
+			case 1:
+				$included = true;
+				include_once('github.php');
+				$u = new GithubUser($userid);
+				if($success = $u->setRepo($vars['github_repo'],$this->id)){
+					$vars['repo_url'] = $u->getRepoUrl();
+				}
+				break;
+		}
+		if($success){
+			$db->sql_freeresult($db->sql_query(query_escape("UPDATE `archive_files` SET `file_type`=%d WHERE `id`=%d",$vars['file_type'],$this->id)));
+		}
+		return $success;
+	}
 	private function imagearray_save_vars($vars){
 		$fileArray = $this->images;
 		for($i = count($fileArray);$i < 4;$i++){
@@ -473,28 +515,31 @@ class File{
 			'delimage0' => 'false',
 			'delimage1' => 'false',
 			'delimage2' => 'false',
-			'delimage3' => 'false'
+			'delimage3' => 'false',
+			'file_type' => 0,
+			'github_repo' => ''
 		),$_POST);
 		$vars['complexity'] = (int)$vars['complexity'];
 		$vars['version'] = (int)$vars['version'];
+		$vars['file_type'] = (int)$vars['file_type'];
 		$vars['forum_url'] = getUrl_safe($vars['forum_url']);
 		$vars['repo_url'] = getUrl_safe($vars['repo_url']);
 		if(!$this->validate_save_vars($vars)){
 			return 'Missing required fields';
 		}
 		if(!$this->exists()){
-			if(sizeof($_FILES)>0 && isset($_FILES['zip']) && !is_array($_FILES['zip']['name']) && $_FILES['zip']['name'] !== ''){
+			if($this->validate_save_filevars($vars)){
 				// we add the file here and upload it later!
-				$db->sql_query(query_escape("INSERT INTO `archive_files` (`author`,`description`,`images`,`forum_url`,`repo_url`,`name`,`votes`,`category`,`filename`) VALUES ('%s','','[]','','','','{}','','')",$userid));
+				$db->sql_query(query_escape("INSERT INTO `archive_files` (`author`,`votes`) VALUES (%d,'{}')",$userid));
 				$this->id = $db->sql_nextid();
 			}else{
 				return 'Missing zip file!';
 			}
 		}
 		$s = '';
-		if(sizeof($_FILES)>0 && isset($_FILES['zip']) && !is_array($_FILES['zip']['name']) && $_FILES['zip']['name'] !== ''){
-			if(!Upload::zipFile($this->id)){
-				$s .= "Couldn't upload zip file, maybe it isn't a zip?";
+		if($this->validate_save_filevars($vars)){
+			if(!$this->upload_save($vars)){
+				$s .= "Couldn't upload zip file / update repo";
 				if($newFile){
 					$db->sql_freeresult($db->sql_query(query_escape("DELETE FROM `archive_files` WHERE `id`=%d",$this->id)));
 					return $s;
