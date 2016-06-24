@@ -1,5 +1,5 @@
 {:global $isAdmin,$userid,$isLoggedIn,$user}
-{#if !{{exists}}}
+{#if !{{exists}} || (!{{public}} && !($userid == {{authorId}} || $isAdmin || !{{exists}}))}
 	<b>Error: file not found</b>
 	{:return}
 {#endif}
@@ -16,12 +16,17 @@
 	'<img src="/wiki/gamelist/advanced.png" alt="advanced"> Advanced code complexity'
 )}
 
-{#if $userid == $this->authorId || $isAdmin}
-	<a href="?edit={id}" id="editfile">Edit</a>
+
+
+{#if !{{public}}}
+	<strong>This file isn't public!</strong>
 {#endif}
 
 <table id="fileDescription" cellspacing="0" cellpadding="0">
-	<tr><th colspan="2"><?=$this->name?> ( <a href="?dl={id}" download>Download</a> )</th></tr>
+	<tr><th colspan="2"><?=$this->name?> ( <a href="?dl={id}" download>Download</a> )
+	{#if $userid == $this->authorId || $isAdmin}
+		<a href="?edit={id}" id="editfile">Edit</a>
+	{#endif}</th></tr>
 	<tr><td>Author</td><td><a href="?author={authorId}">{author}</a></td></tr>
 	<tr><td>Hits</td><td>{hits}</td></tr>
 	<tr><td>Downloads</td><td>{downloads}</td></tr>

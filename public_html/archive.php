@@ -11,9 +11,9 @@ if(isset($request)){
 	$request->enable_super_globals();
 }
 
-define('FILE_EXTRA_FRAGMENT',"t1.`filename`,t1.`category`,t1.`forum_url`,t1.`repo_url`,t1.`version`,t1.`complexity`,UNIX_TIMESTAMP(t1.`ts_updated`) AS `ts_updated`,UNIX_TIMESTAMP(t1.`ts_added`) AS `ts_added`,t1.`hits`,t1.`file_type`,t1.`git_url`,t1.`github_repo`");
-define('FILE_SELECT',"t1.`id`,t1.`author`,t1.`description`,t1.`images`,t1.`name`,t1.`downloads`,t1.`upvotes`,t1.`downvotes`,t2.`username` FROM `archive_files` AS t1 INNER JOIN ".USERS_TABLE." AS t2 ON t1.`author` = t2.`user_id`");
-define('FILE_EXTRA_SELECT',FILE_EXTRA_FRAGMENT." FROM `archive_files` AS t1 INNER JOIN ".USERS_TABLE." AS t2 on t1.`author` = t2.`user_id`");
+define('FILE_EXTRA_FRAGMENT',"t1.`filename`,t1.`category`,t1.`forum_url`,t1.`repo_url`,t1.`version`,t1.`complexity`,UNIX_TIMESTAMP(t1.`ts_updated`) AS `ts_updated`,UNIX_TIMESTAMP(t1.`ts_added`) AS `ts_added`,t1.`hits`");
+define('FILE_SELECT',"t1.`id`,t1.`author`,t1.`description`,t1.`images`,t1.`name`,t1.`downloads`,t1.`upvotes`,t1.`downvotes`,t2.`username`,t1.`public` FROM `archive_files` AS t1 INNER JOIN ".USERS_TABLE." AS t2 ON t1.`author` = t2.`user_id`");
+define('FILE_EXTRA_SELECT',FILE_EXTRA_FRAGMENT." FROM `archive_files` AS t1");
 define('AUTHOR_SELECT',"t1.`username`,t1.`user_id`,COUNT(t2.`id`) AS `files` FROM ".USERS_TABLE." AS t1 INNER JOIN `archive_files` AS t2 ON t1.`user_id`=t2.`author`");
 
 $user->session_begin();
@@ -248,6 +248,7 @@ class File{
 	private $upvotes = 0;
 	private $downvotes = 0;
 	private $extra = false;
+	private $public = false;
 	
 	private $filename = '';
 	private $categories = array();
@@ -258,7 +259,30 @@ class File{
 	private $ts_updated = 0;
 	private $ts_added = 0;
 	private $hits = 0;
+	
+	private $edit = false;
 	private $file_type = array('type' => 0);
+	private $autobuild = true;
+	private $build_path = '';
+	private $build_command = '';
+	private $build_makefile = false;
+	private $build_filename = '';
+	private function populate_edit($obj){
+		$this->file_type = array(
+			'type' => (int)$obj['file_type']
+		);
+		if($this->file_type['type'] == 1){ // github!
+			$this->file_type['git_url'] = $obj['git_url'];
+			$this->file_type['github_repo'] = $obj['github_repo'];
+		}
+		$this->autobuild = $obj['autobuild']?true:false;
+		$this->build_path = $obj['build_path'];
+		$this->build_command = $obj['build_command'];
+		$this->build_makefile = $obj['build_makefile']?true:false;
+		$this->build_filename = $obj['build_filename'];
+		
+		$this->edit = true;
+	}
 	private function populate_extra($obj){
 		$this->filename = $obj['filename'];
 		$this->categories = array();
@@ -272,13 +296,6 @@ class File{
 		$this->ts_updated = (int)$obj['ts_updated'];
 		$this->ts_added = (int)$obj['ts_added'];
 		$this->hits = (int)$obj['hits'];
-		$this->file_type = array(
-			'type' => (int)$obj['file_type']
-		);
-		if($this->file_type['type'] == 1){ // github!
-			$this->file_type['git_url'] = $obj['git_url'];
-			$this->file_type['github_repo'] = $obj['github_repo'];
-		}
 		
 		$this->extra = true;
 	}
@@ -298,9 +315,26 @@ class File{
 		$this->upvotes = (int)$obj['upvotes'];
 		$this->downvotes = (int)$obj['downvotes'];
 		$this->author = $obj['username'];
+		$this->public = $obj['public']?true:false;
+		
 		if($extra){
 			$this->populate_extra($obj);
 		}
+	}
+	private function goedit(){
+		global $userid,$isAdmin;
+		if($this->edit){
+			return;
+		}
+		if(!($userid == $this->authorId || $isAdmin || !$this->exists)){
+			return;
+		}
+		global $db;
+		$result = $db->sql_query(query_escape("SELECT t1.`file_type`,t1.`git_url`,t1.`github_repo`,t1.`autobuild`,t1.`build_path`,t1.`build_command`,t1.`build_makefile`,t1.`build_filename` FROM `archive_files` AS t1 WHERE t1.`id`=%d",$this->id));
+		if($obj = $db->sql_fetchrow($result)){
+			$this->populate_edit($obj);
+		}
+		$db->sql_freeresult($result);
 	}
 	private function goextra(){
 		if($this->extra){ // we are already!
@@ -346,7 +380,8 @@ class File{
 			'upvotes' => $this->upvotes,
 			'downvotes' => $this->downvotes,
 			'image' => $image,
-			'name' => $this->name
+			'name' => $this->name,
+			'public' => $this->public
 		);
 	}
 	public function json(){
@@ -364,8 +399,20 @@ class File{
 			'forum_url' => $this->forum_url,
 			'repo_url' => $this->repo_url,
 			'images' => $this->images,
-			'categories' => $this->categories,
-			'file_type' => $this->file_type
+			'categories' => $this->categories
+		));
+	}
+	public function json_edit(){
+		if(!$this->edit){
+			$this->goedit();
+		}
+		return array_merge($this->json(),array(
+			'file_type' => $this->file_type,
+			'autobuild' => $this->autobuild,
+			'build_path' => $this->build_path,
+			'build_command' => $this->build_command,
+			'build_makefile' => $this->build_makefile,
+			'build_filename' => $this->build_filename
 		));
 	}
 	public function template_short(){
@@ -376,6 +423,14 @@ class File{
 	public function template($file = 'file.inc'){
 		$t = new Template($file);
 		$t->loadJSON($this->json());
+		return $t;
+	}
+	public function template_edit($file = 'edit.inc'){
+		if($this->edit){
+			$this->goedit();
+		}
+		$t = new Template($file);
+		$t->loadJSON($this->json_edit());
 		return $t;
 	}
 	public function visit(){
@@ -498,12 +553,35 @@ class File{
 		}
 		return array($fileArray,$html);
 	}
+	private function examin(){
+		global $frontend_socket_file;
+		if($this->build_command == 'DETECTING'){ // no need to run this
+			return;
+		}
+		$socket = socket_create(AF_UNIX,SOCK_STREAM,0);
+		if(!@socket_connect($socket,$frontend_socket_file)){
+			return;
+		}
+		$s = json_encode(array(
+			'type' => 'examin',
+			'fid' => $this->id
+		))."\n";
+		socket_write($socket,$s,strlen($s));
+		socket_close($socket);
+	}
 	public function save(){
 		global $userid,$isAdmin,$db;
 		if(!($userid == $this->authorId || $isAdmin || !$this->exists())){
 			return '';
 		}
+		$this->goedit();
 		$newFile = !$this->exists();
+		if(isset($_POST['omit_build_settings']) && $_POST['omit_build_settings']){
+			unset($_POST['build_path']);
+			unset($_POST['build_command']);
+			unset($_POST['build_makefile']);
+			unset($_POST['build_filename']);
+		}
 		$vars = array_merge(array(
 			'name' => '',
 			'description' => '',
@@ -517,11 +595,18 @@ class File{
 			'delimage2' => 'false',
 			'delimage3' => 'false',
 			'file_type' => 0,
-			'github_repo' => ''
+			'github_repo' => '',
+			'build_path' => '',
+			'build_command' => '',
+			'build_makefile' => 0,
+			'build_filename' => 0,
+			'autobuild' => 0
 		),$_POST);
 		$vars['complexity'] = (int)$vars['complexity'];
 		$vars['version'] = (int)$vars['version'];
 		$vars['file_type'] = (int)$vars['file_type'];
+		$vars['build_makefile'] = (int)$vars['build_makefile'];
+		$vars['autobuild'] = (int)$vars['autobuild'];
 		$vars['forum_url'] = getUrl_safe($vars['forum_url']);
 		$vars['repo_url'] = getUrl_safe($vars['repo_url']);
 		if(!$this->validate_save_vars($vars)){
@@ -548,16 +633,32 @@ class File{
 			}
 		}
 		$imagesarray = $this->imagearray_save_vars($vars);
-		$db->sql_freeresult($db->sql_query(query_escape(
-			"UPDATE `archive_files` SET `name`='%s',`description`='%s',`forum_url`='%s',`repo_url`='%s',`version`=%d,`complexity`=%d,`category`='%s',`images`='%s' WHERE `id`=%d",
-				$vars['name'],$vars['description'],$vars['forum_url'],$vars['repo_url']
-				,$vars['version'],$vars['complexity'],$vars['category'],json_encode($imagesarray[0])
-				,$this->id)));
+		$query = "UPDATE `archive_files` SET";
+		$params = array();
+		$updateVars = array('name','description','forum_url','repo_url','version','complexity','build_path','build_command','build_makefile','build_filename','autobuild');
+		foreach(array_merge($updateVars,array('category')) as $v){
+			if(isset($_POST[$v])){
+				$query .= "`$v`='%s',";
+				$params[] = $vars[$v];
+			}
+		}
+		$query .= "`images`='%s' WHERE `id`=%d";
+		$params[] = json_encode($imagesarray[0]);
+		$params[] = $this->id;
+		array_unshift($params,$query);
+		
+		$db->sql_freeresult($db->sql_query(call_user_func_array('query_escape',$params)));
+		
 		$s .= $imagesarray[1];
-		foreach(array('name','description','forum_url','repo_url','version','complexity') as $k){
-			$this->$k = $vars[$k];
+		foreach($updateVars as $k){
+			if(isset($_POST[$k])){
+				$this->$k = $vars[$k];
+			}
 		}
 		$s .= 'Saved file! <a href="?file='.$this->id.'">view it</a>';
+		if(isset($_POST['autopick_build_settings']) && $_POST['autopick_build_settings']){
+			$this->examin();
+		}
 		return $s;
 	}
 }
@@ -565,6 +666,12 @@ class Files{
 	private $files = array();
 	private $limit = false;
 	private function getFilesSQL($where = ''){
+		global $isLoggedIn,$userid,$isAdmin;
+		if(empty($where)){
+			$where = array();
+		}else{
+			$where = array($where);
+		}
 		$s = "SELECT ".FILE_SELECT.' ';
 		$cursort = (int)request_var('sort',0);
 		$curdir = (int)request_var('direction',0);
@@ -597,15 +704,23 @@ class Files{
 					$addWhere .= "t1.`category` LIKE '%[".$c."]%'";
 				}
 			}
-			if($where === ''){
-				$where = $addWhere;
-			}elseif($addWhere !== ''){
-				$where = '('.$where.') AND ('.$addWhere.')';
+			$where[] = $addWhere;
+		}
+		if(!$isAdmin){ // admins get to see everything
+			if($isLoggedIn){
+				$where[] = "t1.`public` = 1 OR t1.`author`=".(int)$userid;
+			}else{
+				$where[] = "t1.`public` = 1";
 			}
 		}
-		if($where !== ''){
-			$where = 'WHERE '.$where;
+		if(sizeof($where) > 1){
+			$where = 'WHERE ('.implode(') AND (',$where).')';
+		}elseif(!empty($where[0])){
+			$where = 'WHERE '.$where[0];
+		}else{
+			$where = '';
 		}
+		
 		$s .= $where.' '.$sortcolumns[$cursort].' '.$dirs[$curdir];
 		if($this->limit){
 			$curlimit = (int)request_var('limit',10);

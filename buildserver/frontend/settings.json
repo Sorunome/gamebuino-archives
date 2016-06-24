@@ -1,3 +1,9 @@
 {
-	"backend":"../backend"
+	"backend":"../backend",
+	"sql":{
+		"server":"localhost",
+		"user":"phpBB",
+		"passwd":"dWcnxu95ZsQfJL7a",
+		"db":"phpBB"
+	}
 }

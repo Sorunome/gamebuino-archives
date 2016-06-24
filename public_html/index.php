@@ -234,7 +234,7 @@ if(request_var('file',false)){
 }elseif(request_var('edit',false)){
 	$fid = request_var('edit','invalid');
 	$f = new File($fid,true);
-	$t = $f->template('edit.inc');
+	$t = $f->template_edit();
 	if($t->exists){
 		$body_template->title = $t->name;
 	}else{
@@ -246,6 +246,16 @@ if(request_var('file',false)){
 	$body_template->title = 'Saving';
 	$f = new File(request_var('save','invalid'));
 	$templates[] = $f->save();
+}elseif(request_var('getBuildVars',false)){
+	$f = new File(request_var('getBuildVars','invalid'));
+	$j = $f->json_edit();
+	header('Content-Type: application/json');
+	echo json_encode(array(
+		'build_path' => $j['build_path'],
+		'build_command' => $j['build_command'],
+		'build_makefile' => $j['build_makefile'],
+		'build_filename' => $j['build_filename']
+	));
 }elseif(isset($_GET['error'])){
 	$body_template->title = 'Error';
 	$templates[] = 'Something went wrong! Be sure to <a href="https://github.com/Sorunome/gamebuino-archives/issues" target="_blank">report the issue</a>!';

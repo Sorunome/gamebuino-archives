@@ -1,4 +1,4 @@
-<div class="filecont">
+<div class="filecont{#if !{{public}}} private{#endif}">
 	<div class="name">{name}</div>
 	<div class="author"><a href="?author={authorId}">{author}</a></div>
 	<a href="?file={id}">

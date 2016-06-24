@@ -4,14 +4,14 @@ class Template {
 	private $_cacheDir = 'cache/';
 	private $_file = '';
 	private $_children = array();
-	public $properties = array();
+	private $_properties = array();
 	public function __construct($file){
 		$this->_file = $file;
 	}
 	private function _setDefault($a){
 		foreach($a as $k => $v){
-			if(!isset($this->properties[$k])){
-				$this->properties[$k] = $v;
+			if(!isset($this->_properties[$k])){
+				$this->_properties[$k] = $v;
 			}
 		}
 	}
@@ -116,13 +116,13 @@ class Template {
 	}
 	public function loadJSON($j){
 		foreach($j as $k => $v){
-			$this->properties[$k] = $v;
+			$this->_properties[$k] = $v;
 		}
 	}
 	public function __set($k,$v){
-		$this->properties[$k] = $v;
+		$this->_properties[$k] = $v;
 	}
 	public function __get($k){
-		return $this->properties[$k];
+		return $this->_properties[$k];
 	}
 }

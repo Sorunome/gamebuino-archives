@@ -61,6 +61,9 @@ a:hover {
 	background-color:#BBB;
 	transition:background-color 0.2s ease 0s;
 }
+.filecont.private {
+	background-color: #DBAE81;
+}
 .filecont img.noimage {
 	width:280px;
 	background-image: url("https://www.getdigital.de/web/getdigital/gfx/products/__generated__resized/1100x1100/Aufkleber_Trollface.jpg");
@@ -195,8 +198,8 @@ a:hover {
 #editfile {
 	position:absolute;
 	right:11%;
-	margin-top:9px;
-	color:#99ADFE;
+	margin-top:0.4em;
+	font-size:0.6em;
 }
 /* file/athor page end*/
 

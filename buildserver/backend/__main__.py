@@ -3,7 +3,7 @@ if os.geteuid() != 0:
 	print('Sorry, but i need root!')
 	sys.exit(1)
 
-import json,pwd,grp,shutil,subprocess,traceback,time,threading,shlex,ntpath,server
+import json,pwd,grp,shutil,subprocess,traceback,time,threading,shlex,ntpath,server,re
 
 PATH = os.path.dirname(os.path.abspath(__file__))+'/'
 UID = 1000
@@ -19,6 +19,8 @@ def makeUnicode(s):
 	except:
 		return s
 
+
+
 class Chroot_jail:
 	STATE_UNREADY = 0
 	STATE_READY = 1
@@ -32,10 +34,15 @@ class Chroot_jail:
 	key = ''
 	thread = None
 	
-	def __init__(self,i):
+	TYPE_BUILD = 0
+	TYPE_EXAMIN = 1
+	boxtype = 0
+	
+	def __init__(self,i,boxtype = TYPE_BUILD):
 		self.i = i
 		self.sandbox_path = PATH+'sandbox/box_'+str(i)
 		self.state = self.STATE_UNREADY
+		
 	def demote_maketemplate(self):
 		os.chroot(self.sandbox_template_path)
 		os.chdir('/')
@@ -108,8 +115,9 @@ class Chroot_jail:
 			self.rmTemplate()
 			traceback.print_exc()
 			return False
-	def build_box(self):
+	def build_box(self,boxtype = 0):
 		print('Building sandbox box_'+str(self.i)+' ...')
+		self.boxtype = boxtype
 		try:
 			self.success = False
 			if self.state == self.STATE_READY:
@@ -189,23 +197,94 @@ class Chroot_jail:
 			}
 		]
 	
-	def build_github(self,user,repo,branch):
+	def build_git(self,repo):
 		self.commands += [
 			{
 				'type':'cmd',
-				'cmd':['wget','https://github.com/'+user+'/'+repo+'/archive/'+branch+'.zip','-O',user+'-'+repo+'-'+branch+'.zip']
+				'cmd':['mkdir','repo']
 			},
 			{
 				'type':'cmd',
-				'cmd':['unzip',user+'-'+repo+'-'+branch+'.zip']
+				'cmd':['git','clone','--depth','1',repo,'repo']
 			},
 			{
 				'type':'cmd',
 				'shell':True,
-				'cmd':'mv '+repo+'-'+branch+'/* .'
+				'cmd':'mv repo/* .'
 			}
 		]
+	def examin(self):
+		print('examining this thing....')
+		inofile = ''
+		inodirectory = ''
+		name = ''
+		include = []
 		
+		# we try to find the ino file by <name>/<name>.ino first
+		for root, dirs, files in os.walk('.'):
+			dirs[:] = [d for d in dirs if d not in ['Arduino','.arduino15','bin']]
+			for f in files:
+				if f[-4:] == '.ino':
+					print('Found INO file',f)
+					fname = f[:-4]
+					if root[-len(fname):] == fname:
+						inofile = f
+						inodirectory = root
+			if inofile != '':
+				break
+		
+		# well, if we didn't find anything....let's start looking into the files themself!
+		if inofile == '':
+			for root, dirs, files in os.walk('.'):
+				dirs[:] = [d for d in dirs if d not in ['Arduino','.arduino15','bin']]
+				for f in files:
+					if f[-4:] == '.ino':
+						print('Found INO file',f)
+						with open(root+'/'+f) as o:
+							c = o.read()
+							if re.search(r"void\s+setup\([^)]*\)\s*{",c) and re.search(r"void\s+loop\([^)]*\)\s*{",c):
+								print('Found you sucker!')
+								inofile = f
+								inodirectory = root
+								break
+				if inofile != '':
+					break
+		
+		#now search for the name and additional INF files to include!
+		if inofile != '':
+			for root, dirs, files in os.walk('.'):
+				dirs[:] = [d for d in dirs if d not in ['Arduino','.arduino15','bin']]
+				for f in files:
+					ext = f[-4:]
+					if ext == '.HEX' or ext == '.INF':
+						name = f[:-4][:8].upper()
+					if ext == '.INF':
+						path = "../"*(len(os.path.split(inodirectory+'/'))-1)+root+'/'+f
+						
+						include.append(os.path.normpath(path))
+		
+		if name == '':
+			name = inofile[:-4][:8].upper()
+		inodirectory = os.path.normpath(inodirectory)
+		
+		with open('/build/.resp_code','w+') as f:
+			f.write(str(int(inofile == '')))
+		
+		json_obj = {
+			'ino_file':inofile,
+			'path':inodirectory,
+			'filename':name,
+			'include':include
+		}
+		with open('/build/.results.json','w+') as f:
+			f.write(json.dumps(json_obj))
+	def build_examin(self):
+		self.commands += [
+			{
+				'type':'exec',
+				'fn':self.examin
+			}
+		]
 	def demote(self):
 		try:
 			print('Running chroot ('+str(self.i)+')...')
@@ -242,12 +321,38 @@ class Chroot_jail:
 			self.success = False
 			self.state = self.STATE_DONE # just trash the chroot
 	def doneQueue(self):
-		QUEUE.append({
-			'type':'done',
-			'success':self.success,
-			'jail':self,
-			'key':self.key
-		})
+		if self.boxtype == self.TYPE_BUILD:
+			QUEUE.append({
+				'type':'done',
+				'success':self.success,
+				'jail':self,
+				'key':self.key
+			})
+		elif self.boxtype == self.TYPE_EXAMIN:
+			try:
+				with open(self.sandbox_path+'/build/.results.json','r+') as f:
+					json_data = json.load(f)
+				QUEUE.append({
+					'type':'done_examin',
+					'success':self.success,
+					'jail':self,
+					'key':self.key,
+					'ino_file':json_data['ino_file'],
+					'filename':json_data['filename'],
+					'path':json_data['path'],
+					'include':json_data['include']
+				})
+			except:
+				QUEUE.append({
+					'type':'done_examin',
+					'success':False,
+					'jail':self,
+					'key':self.key,
+					'ino_file':'',
+					'filename':'',
+					'path':'',
+					'include':[]
+				})
 		self.state = self.STATE_DONE # we need to trash the chroot, it may be unsafe!
 	def run(self):
 		if self.state != self.STATE_READY:
@@ -296,6 +401,8 @@ class ServerLink(server.ServerHandler):
 					QUEUE.append(data)
 				elif data['type'] == 'destroy':
 					QUEUE.append(data)
+				elif data['type'] == 'examin':
+					QUEUE.append(data)
 			except:
 				traceback.print_exc()
 		return True
@@ -338,8 +445,8 @@ if __name__ == '__main__':
 							continue
 						j.build_box()
 						j.set_key(data['build']['key'])
-						if data['build']['type'] == 'github':
-							j.build_github(data['build']['github']['username'],data['build']['github']['repo'],data['build']['github']['branch'])
+						if data['build']['type'] == 'git':
+							j.build_git(data['build']['git'])
 						if 'path' in data['build']:
 							j.build_path(data['build']['path'])
 						if 'makefile' in data['build']:
@@ -365,6 +472,32 @@ if __name__ == '__main__':
 							'type':'done',
 							'success':data['success'],
 							'key':data['jail'].key
+						})
+					elif data['type'] == 'examin':
+						j = getIdleJail()
+						if not j:
+							QUEUE.append(data) # we couldn't find a jail, let's try again later!
+							continue
+						j.build_box(j.TYPE_EXAMIN)
+						j.set_key(data['examin']['key'])
+						if data['examin']['type'] == 'git':
+							j.build_git(data['examin']['git'])
+						j.build_examin()
+						j.thread.start()
+					elif data['type'] == 'done_examin':
+						sendAll({
+							'type':'done_examin',
+							'success':data['success'],
+							'key':data['jail'].key,
+							'ino_file':data['ino_file'],
+							'filename':data['filename'],
+							'path':data['path'],
+							'include':data['include']
+						})
+						data['jail'].destroy_box()
+						QUEUE.append({
+							'type':'destroy',
+							'key':data['key']
 						})
 					elif data['type'] == 'destroy':
 						outdir = PATH+'builds/'+data['key']
