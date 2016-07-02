@@ -704,7 +704,9 @@ class Files{
 					$addWhere .= "t1.`category` LIKE '%[".$c."]%'";
 				}
 			}
-			$where[] = $addWhere;
+			if(!empty($addWhere)){
+				$where[] = $addWhere;
+			}
 		}
 		if(!$isAdmin){ // admins get to see everything
 			if($isLoggedIn){

@@ -22,8 +22,8 @@
 	<strong>This file isn't public!</strong>
 {#endif}
 
-<table id="fileDescription" cellspacing="0" cellpadding="0">
-	<tr><th colspan="2"><?=$this->name?> ( <a href="?dl={id}" download>Download</a> )
+<table id="fileDescription" class="descriptionTable" cellspacing="0" cellpadding="0">
+	<tr><th colspan="2"><?=$this->name?> (&nbsp;<a href="?dl={id}" download>Download</a>&nbsp;)
 	{#if $userid == $this->authorId || $isAdmin}
 		<a href="?edit={id}" id="editfile">Edit</a>
 	{#endif}</th></tr>

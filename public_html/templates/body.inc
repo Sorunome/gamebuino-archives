@@ -4,6 +4,7 @@
 <head>
 	<title>Gamebuino Archive - {title}</title>
 	<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<link rel="stylesheet" type="text/css" href="style.css">
 	<meta http-equiv="content-language" content="en-gb">
 	<link rel="shortcut icon" href="/favicon.ico">
