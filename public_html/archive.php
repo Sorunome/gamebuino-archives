@@ -97,6 +97,27 @@ function getHelpHTML($s){
 	return '<div class="help"><img src="help_icon.png"><div class="text">'.$s.'</div></div>';
 }
 
+function getBuildOutputMessage($id){
+	global $db,$backend_path;
+	if(!is_numeric($id)){
+		return '';
+	}
+	$res = $db->sql_query(query_escape("SELECT `file`,`status`,`output` FROM `archive_queue` WHERE `id`=%d AND `type`=0",(int)$id));
+	if(!($qdata = $db->sql_fetchrow($res))){
+		$db->sql_freeresult($res);
+		return '';
+	}
+	$db->sql_freeresult($res);
+	$f = new File($qdata['file']);
+	if(!$f->canEdit()){
+		return '';
+	}
+	if(in_array($qdata['status'],array(1,2))){
+		return @file_get_contents($backend_path.'/output/'.$qdata['file']);
+	}
+	return $qdata['output'];
+}
+
 class Author{
 	private $id = -1;
 	private $name = '';
@@ -389,6 +410,7 @@ class File{
 			$this->goextra();
 		}
 		return array_merge($this->json_short(),array(
+			'can_edit' => $this->canEdit(),
 			'hits' => $this->hits,
 			'downloads' => $this->downloads,
 			'ts_added' => $this->ts_added,
@@ -425,12 +447,42 @@ class File{
 		$t->loadJSON($this->json());
 		return $t;
 	}
+	public function template_builds(){
+		global $db;
+		$builds = array();
+		if($this->canEdit()){
+			$result = $db->sql_query(query_escape("SELECT `id`,`status`,UNIX_TIMESTAMP(`ts`) AS `ts` FROM `archive_queue` WHERE `type`=0 AND `file`=%d ORDER BY `ts` DESC",$this->id));
+			while($b = $db->sql_fetchrow($result)){
+				$t = new Template('edit_build.inc');
+				$t->id = (int)$b['id'];
+				$t->status = (int)$b['status'];
+				$t->ts = (int)$b['ts'];
+				$builds[] = $t;
+			}
+			$db->sql_freeresult($result);
+		}
+		return $builds;
+	}
 	public function template_edit($file = 'edit.inc'){
 		if($this->edit){
 			$this->goedit();
 		}
 		$t = new Template($file);
-		$t->loadJSON($this->json_edit());
+		$j = $this->json_edit();
+		$t->loadJSON($j);
+		
+		$tb = new Template('edit_file_settings.inc');
+		$tb->loadJSON($j);
+		$t->addChild($tb);
+		
+		$tb = new Template('edit_build_settings.inc');
+		$tb->loadJSON($j);
+		$t->addChild($tb);
+		
+		$tb = new Template('edit_builds.inc');
+		$tb->loadJSON($j);
+		$tb->addChildren($this->template_builds());
+		$t->addChild($tb);
 		return $t;
 	}
 	public function visit(){
@@ -480,6 +532,10 @@ class File{
 		}
 		$db->sql_freeresult($db->sql_query(query_escape("UPDATE `archive_files` SET `upvotes`=%d,`downvotes`=%d,`votes`='%s' WHERE `id`=%d",$this->upvotes,$this->downvotes,json_encode($votes),$this->id)));
 		return $this->rate(0);
+	}
+	public function canEdit(){
+		global $userid,$isAdmin;
+		return $userid == $this->authorId || $isAdmin || !$this->exists();
 	}
 	private function validate_save_vars($vars){
 		global $db;
@@ -553,6 +609,34 @@ class File{
 		}
 		return array($fileArray,$html);
 	}
+	public function build(){
+		global $frontend_socket_file,$db;
+		if(!$this->canEdit()){
+			return false;
+		}
+		$this->goedit();
+		if(empty($this->build_command)){
+			return false;
+		}
+		$res = $db->sql_query(query_escape("SELECT `id` FROM `archive_queue` WHERE `file`=%d AND `type`=0 AND (`status`=1 OR `status`=2)",$this->id));
+		if($db->sql_fetchrow($res)){ // we are already building...
+			$db->sql_freeresult($res);
+			return false;
+		}
+		$db->sql_freeresult($res);
+		
+		$socket = socket_create(AF_UNIX,SOCK_STREAM,0);
+		if(!@socket_connect($socket,$frontend_socket_file)){
+			return false;
+		}
+		$s = json_encode(array(
+			'type' => 'build',
+			'fid' => $this->id
+		))."\n";
+		socket_write($socket,$s,strlen($s));
+		socket_close($socket);
+		return true;
+	}
 	private function examin(){
 		global $frontend_socket_file;
 		if($this->build_command == 'DETECTING'){ // no need to run this
@@ -570,8 +654,8 @@ class File{
 		socket_close($socket);
 	}
 	public function save(){
-		global $userid,$isAdmin,$db;
-		if(!($userid == $this->authorId || $isAdmin || !$this->exists())){
+		global $userid,$db;
+		if(!$this->canEdit()){
 			return '';
 		}
 		$this->goedit();

@@ -1,5 +1,6 @@
 {
-	"backend":"../backend",
+	"backend":"/home/sorunome/repos/gamebuino-archives/buildserver/backend",
+	"public_html":"/home/sorunome/public_html/archives",
 	"sql":{
 		"server":"localhost",
 		"user":"phpBB",

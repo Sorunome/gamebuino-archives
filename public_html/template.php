@@ -63,6 +63,7 @@ class Template {
 						case 'endfor':
 						case 'endforeach':
 						case 'endswitch':
+						case 'break';
 							return '<?php '.$match[0].'; ?>';
 					}
 					return '';
@@ -72,7 +73,10 @@ class Template {
 						case 'global':
 							return '<?php global '.$match[1].'; ?>';
 						case 'children':
-							return '<?php $this->_renderChildren(); ?>';
+							if(empty($match[1])){
+								return '<?php $this->_renderChildren(); ?>';
+							}
+							return '<?php $this->_renderChildren("'.$match[1].'"); ?>';
 						case 'default':
 							$s = '';
 							foreach(explode(';',$match[1]) as $var){

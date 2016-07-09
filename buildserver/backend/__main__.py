@@ -185,15 +185,11 @@ class Chroot_jail:
 				'cmd':cmd
 			}
 		]
-	def build_makefile(self,ino,name):
+	def build_makefile(self,makefile):
 		self.commands += [
 			{
 				'type':'cmd',
-				'cmd':['cp','/makefiles/gamebuino.mk','Makefile']
-			},
-			{
-				'type':'cmd',
-				'cmd':['timeout',str(config['timeout']),'make','INO_FILE='+ino,'NAME='+name]
+				'cmd':['cp','/makefiles/'+makefile,'Makefile']
 			}
 		]
 	
@@ -450,7 +446,8 @@ if __name__ == '__main__':
 						if 'path' in data['build']:
 							j.build_path(data['build']['path'])
 						if 'makefile' in data['build']:
-							j.build_makefile(data['build']['makefile']['ino'],data['build']['makefile']['name'])
+							j.build_makefile(data['build']['makefile'])
+						j.build_command(data['build']['command'])
 						if 'include' in data['build']:
 							j.build_includefiles(data['build']['include'])
 						j.thread.start()

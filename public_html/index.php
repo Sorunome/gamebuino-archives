@@ -232,8 +232,7 @@ if(request_var('file',false)){
 	header('Location: ?file='.$res['id']);
 	exit;
 }elseif(request_var('edit',false)){
-	$fid = request_var('edit','invalid');
-	$f = new File($fid,true);
+	$f = new File(request_var('edit','invalid'),true);
 	$t = $f->template_edit();
 	if($t->exists){
 		$body_template->title = $t->name;
@@ -241,11 +240,25 @@ if(request_var('file',false)){
 		$body_template->title = 'Error';
 	}
 	$templates[] = $t;
-	
+}elseif(request_var('edit_builds',false)){
+	$f = new File(request_var('edit_builds','invalid'));
+	header('Content-Type: text/html');
+	foreach($f->template_builds() as $b){
+		$b->render();
+	}
 }elseif(request_var('save',false)){
 	$body_template->title = 'Saving';
 	$f = new File(request_var('save','invalid'));
 	$templates[] = $f->save();
+}elseif(request_var('build',false)){
+	$f = new File(request_var('build','invalid'));
+	header('Content-Type: application/json');
+	echo json_encode(array(
+		'success' => $f->build()
+	));
+}elseif(request_var('build_message',false)){
+	header('Content-Type: text/plain');
+	echo getBuildOutputMessage(request_var('build_message','invalid'));
 }elseif(request_var('getBuildVars',false)){
 	$f = new File(request_var('getBuildVars','invalid'));
 	$j = $f->json_edit();

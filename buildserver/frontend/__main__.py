@@ -1,10 +1,21 @@
-import socket,json,traceback,os,threading,sys,time,server,pymysql
+import socket,json,traceback,os,threading,sys,time,server,pymysql,shutil,hashlib
 if os.geteuid() == 0:
 	print('Do not ever run me as root!')
 	sys.exit(1)
 PATH = os.path.dirname(os.path.abspath(__file__))+'/'
 with open(PATH+'settings.json') as f:
 	config = json.load(f)
+
+def hashFolder(path):
+	hash = hashlib.sha1()
+	for root, dirs, files in os.walk(path):
+		for f in files:
+			if f[-4:] != '.elf':
+				with open(root+'/'+f,'rb') as fp:
+					for chunk in iter(lambda: fp.read(4096), b''):
+						hash.update(chunk)
+	return hash.hexdigest()
+
 
 def makeUnicode(s):
 	try:
@@ -155,7 +166,41 @@ class SocketConnection(threading.Thread):
 				try:
 					data = json.loads(line)
 					if data['type'] == 'done':
-						# TODO: copy&stuff
+						print(data)
+						qdata = sql.query("SELECT t1.`file`,t1.`type`,t1.`status`,t2.`public` FROM `archive_queue` AS t1 INNER JOIN `archive_files` AS t2 ON t1.`file`=t2.`id` WHERE t1.`id`=%s",[int(data['key'])])
+						if qdata:
+							qdata = qdata[0]
+							if qdata['type'] == 0 and qdata['status'] == 2: # make sure we are building this thing
+								status = 0
+								if data['success']:
+									status = 3
+									timestamp = str(int(time.time()))
+									
+									# copy the actual build files
+									out_path = config['public_html']+'/files/gb1/'+str(qdata['file'])
+									if not os.path.exists(out_path):
+										os.makedirs(out_path)
+									lastDir = '0'
+									for d in os.listdir(out_path):
+										if os.path.exists(out_path+'/'+d) and int(lastDir) < int(d):
+											lastDir = d
+									last_out = out_path+'/'+lastDir
+									out_path += '/'+timestamp
+									shutil.copytree(config['backend']+'/builds/'+str(data['key']),out_path)
+									if lastDir != '0' and hashFolder(last_out) == hashFolder(out_path):
+										status = 4
+										shutil.rmtree(out_path)
+									elif qdata['public']:
+										sql.query("UPDATE `archive_files` SET `ts_updated`=FROM_UNIXTIME(%s) WHERE `id`=%s",[timestamp,int(qdata['file'])])
+									else:
+										sql.query("UPDATE `archive_files` SET `ts_updated`=FROM_UNIXTIME(%s),`ts_added`=FROM_UNIXTIME(%s),`public`=1 WHERE `id`=%s",[timestamp,timestamp,int(qdata['file'])])
+								output = ''
+								try:
+									with open(config['backend']+'/output/'+str(data['key']),'r') as f:
+										output = f.read()
+								except:
+									output = ''
+								sql.query("UPDATE `archive_queue` SET `status`=%s,`output`=%s WHERE `id`=%s",[status,output,int(data['key'])])
 						self.send({
 							'type':'destroy',
 							'key':data['key']
@@ -166,7 +211,7 @@ class SocketConnection(threading.Thread):
 						qdata = sql.query("SELECT t1.`file`,t1.`type`,t1.`status` FROM `archive_queue` AS t1 INNER JOIN `archive_files` AS t2 ON t1.`file`=t2.`id` WHERE t1.`id`=%s",[int(data['key'])])
 						if qdata:
 							qdata = qdata[0]
-							if qdata['type'] == 1: # we were actually examining it, so everything is fine
+							if qdata['type'] == 1 and qdata['status'] == 2: # we were actually examining it, so everything is fine
 								if data['success']:
 									sql.query("UPDATE `archive_files` SET `build_path`=%s,`build_command`=%s,`build_makefile`=1,`build_filename`=%s WHERE `id`=%s",[data['path'],'make INO_FILE='+data['ino_file']+' NAME=%name%',data['filename'],qdata['file']])
 								else:
@@ -194,7 +239,39 @@ class ServerLink(server.ServerHandler):
 			try:
 				data = json.loads(line)
 				print('>>',data)
-				if data['type'] == 'examin':
+				if data['type'] == 'build':
+					fdata = sql.query("SELECT `id`,`file_type`,`git_url`,`build_path`,`build_command`,`build_makefile`,`build_filename` FROM `archive_files` WHERE `id`=%s",[int(data['fid'])])
+					if fdata:
+						fdata = fdata[0]
+						if fdata['file_type'] > 1:
+							continue
+						sql.query("INSERT INTO `archive_queue` (`file`,`type`,`status`,`output`) VALUES (%s,0,2,'')",[fdata['id']])
+						key = str(sql.insertId())
+						print(key)
+						success = False
+						if fdata['file_type'] == 0:
+							print('zip file')
+						elif fdata['file_type'] == 1:
+							print('git stuff')
+							fdata['build_command'] = fdata['build_command'].replace('%name%',fdata['build_filename'])
+							if fdata['build_command'] != '':
+								obj = {
+									'type':'build',
+									'build':{
+										'type':'git',
+										'git':fdata['git_url'],
+										'key':key,
+										'path':fdata['build_path'],
+										'command':fdata['build_command']
+									}
+								}
+								if fdata['build_makefile']:
+									obj['build']['makefile'] = 'gamebuino.mk'
+								sock.send(obj)
+								success = True
+						if not success:
+							sql.query("DELETE FROM `archive_queue` WHERE `id`=%s",[int(key)])
+				elif data['type'] == 'examin':
 					fdata = sql.query("SELECT `id`,`file_type`,`git_url` FROM `archive_files` WHERE `id`=%s",[int(data['fid'])])
 					if fdata:
 						fdata = fdata[0]
@@ -228,7 +305,7 @@ class ServerLink(server.ServerHandler):
 		return True
 
 if __name__ == '__main__':
-	sock = SocketConnection(PATH+config['backend']+'/socket.sock')
+	sock = SocketConnection(config['backend']+'/socket.sock')
 	sock.start()
 	#sock.send({
 	#	'type':'examin',
