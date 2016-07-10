@@ -54,17 +54,19 @@ class Template {
 						case 'switch':
 							return '<?php '.$match[0].'('.$match[1].'): ?>';
 						case 'case':
-							return '<?php case '.$match[1].': ?>';
+							return '<?phpoptional case '.$match[1].': ?>';
 						case 'else':
-						case 'default':
 							return '<?php '.$match[0].': ?>';
+						case 'default':
+							return '<?phpoptional '.$match[0].': ?>';
 						case 'endif':
 						case 'endwhile':
 						case 'endfor':
 						case 'endforeach':
-						case 'endswitch':
-						case 'break';
 							return '<?php '.$match[0].'; ?>';
+						case 'break';
+						case 'endswitch':
+							return '<?phpoptional '.$match[0].'; ?>';
 					}
 					return '';
 				case ':':
@@ -94,7 +96,6 @@ class Template {
 			}
 			return '';
 		},$f);
-		$f = preg_replace('/\?>\s*<\?php (case|default|endswitch)/','$1',$f);
 		$f = preg_replace('/\?>\s*<\?phpoptional/','',$f);
 		$f = str_replace('<?phpoptional','<?php',$f);
 		$f = str_replace('?><?php','',$f);
