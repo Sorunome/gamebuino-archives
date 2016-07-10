@@ -3,10 +3,12 @@ class Template {
 	private $_templateDir = 'templates/';
 	private $_cacheDir = 'cache/';
 	private $_file = '';
+	private $_hashfile = '';
 	private $_children = array();
 	private $_properties = array();
 	public function __construct($file){
 		$this->_file = $file;
+		$this->_hashfile = $this->_cacheDir.md5($this->_file).'.inc';
 	}
 	private function _setDefault($a){
 		foreach($a as $k => $v){
@@ -100,15 +102,15 @@ class Template {
 		$f = str_replace('<?phpoptional','<?php',$f);
 		$f = str_replace('?><?php','',$f);
 		
-		if(file_put_contents($this->_cacheDir.md5($this->_file).'.inc',$f)){
+		if(file_put_contents($this->_hashfile,$f)){
 			$this->render();
 		}else{
 			eval('?>'.$f);
 		}
 	}
 	public function render(){
-		if(file_exists($this->_cacheDir.md5($this->_file).'.inc')){
-			include($this->_cacheDir.md5($this->_file).'.inc');
+		if(file_exists($this->_hashfile)){
+			include($this->_hashfile);
 		}else{
 			$this->_renderManually();
 		}
