@@ -3,7 +3,7 @@
 	<label>Automatic builds: <input type="checkbox" name="autobuild" value="1"{#if {{autobuild}}} checked="checked"{#endif}></label>
 			{!getHelpHTML('Checking this will automatically re-build your game if there are library updates, making sure that everything is kept up-to-date!')}<br>
 	{#if {{build_command}} == 'DETECTING'}
-		<strong id="build_detecting">Currently detecting settings, please hold by</strong>
+		<strong id="build_detecting">Currently detecting settings, please stand by</strong>
 		<input type="hidden" name="omit_build_settings" value="1" />
 		<div id="edit_build_settings_fields" class="hidden">
 	{#endif}
@@ -18,7 +18,9 @@
 	<label>Include makefile: <input type="checkbox" name="build_makefile"{#if {{build_makefile}}} checked="checked"{#endif}></label>
 			{!getHelpHTML('Include a makefile to easily compile gamebuino projects')}<br>
 	<label>Output Filename: <input type="text" name="build_filename" value="{build_filename}" maxlength="8"></label>
-			{!getHelpHTML('Filename of the output file, max. 8 chars, all uppercase, without .HEX, e.g. MYFILE')}
+			{!getHelpHTML('Filename of the output file, max. 8 chars, all uppercase, without .HEX, e.g. MYFILE')}<br>
+	<label>Move Path: <input type="text" name="build_movepath" value="{build_movepath}"></label>
+			{!getHelpHTML('The Arduino IDE requires the main file to be located in a folder with the same name, if that is not the case you can automatically move the files in the source directory. This is relative to the build path, and the new build path will be inside this new directory')}
 	{#if {{build_command}} == 'DETECTING'}
 		</div>
 	{#endif}
@@ -52,6 +54,7 @@
 								$('input[name="build_command"]').val(data.build_command);
 								$('input[name="build_filename"]').val(data.build_filename);
 								$('input[name="build_makefile"]')[0].checked = data.build_makefile;
+								$('input[name="build_movepath"]').val(data.build_movepath);
 								
 								$('input[name="omit_build_settings"]').remove();
 								$msg.remove();

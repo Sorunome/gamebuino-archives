@@ -1,4 +1,5 @@
 <?php
+$startTime = microtime(true);
 include_once('archive.php');
 
 function panic(){
@@ -73,6 +74,7 @@ function getDlFilesMult($fids){
 $templates = array();
 $body_template = new Template('body.inc');
 $body_template->title = '';
+$body_template->startTime = $startTime;
 
 if(request_var('file',false)){
 	$fid = request_var('file','invalid');
@@ -267,7 +269,8 @@ if(request_var('file',false)){
 		'build_path' => $j['build_path'],
 		'build_command' => $j['build_command'],
 		'build_makefile' => $j['build_makefile'],
-		'build_filename' => $j['build_filename']
+		'build_filename' => $j['build_filename'],
+		'build_movepath' => $j['build_movepath']
 	));
 }elseif(isset($_GET['error'])){
 	$body_template->title = 'Error';

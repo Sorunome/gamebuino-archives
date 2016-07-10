@@ -1,5 +1,5 @@
 {
 	"max_jails":4,
-	"packages":["base-devel","git","wget","unzip","avr-gcc"],
+	"packages":["base-devel","git","wget","unzip","avr-gcc","rsync"],
 	"timeout":900
 }

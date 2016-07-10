@@ -7,8 +7,8 @@ class Template {
 	private $_children = array();
 	private $_properties = array();
 	public function __construct($file){
-		$this->_file = $file;
-		$this->_hashfile = $this->_cacheDir.md5($this->_file).'.inc';
+		$this->_file = $this->_templateDir.$file;
+		$this->_hashfile = $this->_cacheDir.md5($file).'.inc';
 	}
 	private function _setDefault($a){
 		foreach($a as $k => $v){
@@ -27,10 +27,10 @@ class Template {
 		}
 	}
 	private function _renderManually(){
-		if(!file_exists($this->_templateDir.$this->_file)){
-			throw new Exception("Couldn't find template file {$this->_templateDir}{$this->_file} !");
+		if(!file_exists($this->_file)){
+			throw new Exception("Couldn't find template file {$this->_file} !");
 		}
-		$f = file_get_contents($this->_templateDir.$this->_file);
+		$f = file_get_contents($this->_file);
 		
 		$f = preg_replace('/{{(\w[\w$\[\]\->\'"]*)}}/','\$this->$1',$f);
 

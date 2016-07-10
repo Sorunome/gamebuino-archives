@@ -29,6 +29,7 @@
 		{:children}
 	</article>
 	<footer>
+		Page created in {round(microtime(true)-{{startTime}},4)} seconds<br>
 		Archives software &copy;<a href="https://www.sorunome.de" target="_blank">Sorunome</a><br>
 		Gamebuino &copy;Rodot<br>
 		Something isn't working? <a href="https://github.com/Sorunome/gamebuino-archives/issues" target="_blank">Report the issue!</a>

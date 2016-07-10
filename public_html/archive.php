@@ -113,7 +113,7 @@ function getBuildOutputMessage($id){
 		return '';
 	}
 	if(in_array($qdata['status'],array(1,2))){
-		return @file_get_contents($backend_path.'/output/'.$qdata['file']);
+		return file_get_contents($backend_path.'/output/'.$id);
 	}
 	return $qdata['output'];
 }
@@ -288,6 +288,7 @@ class File{
 	private $build_command = '';
 	private $build_makefile = false;
 	private $build_filename = '';
+	private $build_movepath = '';
 	private function populate_edit($obj){
 		$this->file_type = array(
 			'type' => (int)$obj['file_type']
@@ -301,6 +302,7 @@ class File{
 		$this->build_command = $obj['build_command'];
 		$this->build_makefile = $obj['build_makefile']?true:false;
 		$this->build_filename = $obj['build_filename'];
+		$this->build_movepath = $obj['build_movepath'];
 		
 		$this->edit = true;
 	}
@@ -351,7 +353,7 @@ class File{
 			return;
 		}
 		global $db;
-		$result = $db->sql_query(query_escape("SELECT t1.`file_type`,t1.`git_url`,t1.`github_repo`,t1.`autobuild`,t1.`build_path`,t1.`build_command`,t1.`build_makefile`,t1.`build_filename` FROM `archive_files` AS t1 WHERE t1.`id`=%d",$this->id));
+		$result = $db->sql_query(query_escape("SELECT t1.`file_type`,t1.`git_url`,t1.`github_repo`,t1.`autobuild`,t1.`build_path`,t1.`build_command`,t1.`build_makefile`,t1.`build_filename`,t1.`build_movepath` FROM `archive_files` AS t1 WHERE t1.`id`=%d",$this->id));
 		if($obj = $db->sql_fetchrow($result)){
 			$this->populate_edit($obj);
 		}
@@ -434,7 +436,8 @@ class File{
 			'build_path' => $this->build_path,
 			'build_command' => $this->build_command,
 			'build_makefile' => $this->build_makefile,
-			'build_filename' => $this->build_filename
+			'build_filename' => $this->build_filename,
+			'build_movepath' => $this->build_movepath
 		));
 	}
 	public function template_short(){
@@ -534,8 +537,8 @@ class File{
 		return $this->rate(0);
 	}
 	public function canEdit(){
-		global $userid,$isAdmin;
-		return $userid == $this->authorId || $isAdmin || !$this->exists();
+		global $userid,$isAdmin,$isLoggedIn;
+		return $userid == $this->authorId || $isAdmin || (!$this->exists() && $isLoggedIn);
 	}
 	private function validate_save_vars($vars){
 		global $db;
@@ -694,7 +697,8 @@ class File{
 			'build_path' => '',
 			'build_command' => '',
 			'build_makefile' => 0,
-			'build_filename' => 0,
+			'build_filename' => '',
+			'build_movefile' => '',
 			'autobuild' => 0
 		),$_POST);
 		$vars['complexity'] = (int)$vars['complexity'];
@@ -730,7 +734,7 @@ class File{
 		$imagesarray = $this->imagearray_save_vars($vars);
 		$query = "UPDATE `archive_files` SET";
 		$params = array();
-		$updateVars = array('name','description','forum_url','repo_url','version','complexity','build_path','build_command','build_makefile','build_filename','autobuild');
+		$updateVars = array('name','description','forum_url','repo_url','version','complexity','build_path','build_command','build_makefile','build_filename','autobuild','build_movefile');
 		foreach(array_merge($updateVars,array('category')) as $v){
 			if(isset($_POST[$v])){
 				$query .= "`$v`='%s',";

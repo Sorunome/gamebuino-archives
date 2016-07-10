@@ -1,18 +1,16 @@
-{:global $isLoggedIn,$userid,$isAdmin}
 {#if !{{can_edit}}}
-	Access Denied
+	{#if {{exists}}}
+		Access Denied
+	{#else}
+		You need to <a href="/forum/ucp.php?mode=register">Register</a> or <a href="/forum/ucp.php?mode=login">Login</a> to be able to upload a file!
+	{#endif}
 	{:return}
 {#endif}
 
 {#if {{exists}}}
 	<h1>Editing file <i>{name}</i></h1><a href="?file={id}">Back</a><br><br>
 {#else}
-	{#if $isLoggedIn}
-		<h1>Upload new file</h1>
-	{#else}
-		You need to <a href="/forum/ucp.php?mode=register">Register</a> or <a href="/forum/ucp.php?mode=login">Login</a> to be able to upload a file!
-		{:return}
-	{#endif}
+	<h1>Upload new file</h1>
 {#endif}
 <form id="fileeditform" action="?save={id}" method="post" enctype="multipart/form-data">
 	Name:<input type="text" name="name" value="{name}">

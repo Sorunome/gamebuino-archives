@@ -123,8 +123,7 @@ class SocketConnection(threading.Thread):
 		except:
 			if not self.stopnow:
 				self.sendQueue.append(obj)
-				self.disconnect()
-				self.connect()
+				self.disconnect() # we won't reconnect here, we'll have errors in the main thread anyways
 	def connect(self):
 		print('Connecting to socket '+self.sockfile+'...')
 		while not self.stopnow: # python doesn't optimize tail recursion, we don't want that!
@@ -218,7 +217,7 @@ class SocketConnection(threading.Thread):
 							qdata = qdata[0]
 							if qdata['type'] == 1 and qdata['status'] == 2: # we were actually examining it, so everything is fine
 								if data['success']:
-									sql.query("UPDATE `archive_files` SET `build_path`=%s,`build_command`=%s,`build_makefile`=1,`build_filename`=%s WHERE `id`=%s",[data['path'],'make INO_FILE='+data['ino_file']+' NAME=%name%',data['filename'],qdata['file']])
+									sql.query("UPDATE `archive_files` SET `build_path`=%s,`build_command`=%s,`build_makefile`=1,`build_filename`=%s,`build_movepath`=%s WHERE `id`=%s",[data['path'],'make INO_FILE='+data['ino_file']+' NAME=%name%',data['filename'],data['movepath'],qdata['file']])
 									if qdata['cmd_after'] != -1:
 										parseClientInput({
 											'type':['build','examin'][qdata['cmd_after']],
@@ -236,7 +235,7 @@ def parseClientInput(data,key = ''):
 	print('>> ',data)
 	success = False
 	if data['type'] == 'build':
-		fdata = sql.query("SELECT `id`,`file_type`,`git_url`,`build_path`,`build_command`,`build_makefile`,`build_filename` FROM `archive_files` WHERE `id`=%s",[int(data['fid'])])
+		fdata = sql.query("SELECT `id`,`file_type`,`git_url`,`build_path`,`build_command`,`build_makefile`,`build_filename`,`build_movepath` FROM `archive_files` WHERE `id`=%s",[int(data['fid'])])
 		if fdata:
 			fdata = fdata[0]
 			if key:
@@ -247,24 +246,34 @@ def parseClientInput(data,key = ''):
 			
 			if fdata['file_type'] <= 1:
 				print(key)
-				if fdata['file_type'] == 0:
-					print('zip file')
-				elif fdata['file_type'] == 1:
-					print('git stuff')
-					fdata['build_command'] = fdata['build_command'].replace('%name%',fdata['build_filename'])
-					if fdata['build_command'] != '':
-						obj = {
-							'type':'build',
-							'build':{
-								'type':'git',
-								'git':fdata['git_url'],
-								'key':key,
-								'path':fdata['build_path'],
-								'command':fdata['build_command']
-							}
-						}
-						if fdata['build_makefile']:
-							obj['build']['makefile'] = 'gamebuino.mk'
+				fdata['build_command'] = fdata['build_command'].replace('%name%',fdata['build_filename'])
+				obj = {
+					'type':'build',
+					'build':{
+						'key':key,
+						'path':fdata['build_path'],
+						'command':fdata['build_command']
+					}
+				}
+				if fdata['build_makefile']:
+					obj['build']['makefile'] = 'gamebuino.mk'
+				if fdata['build_movepath']:
+					obj['build']['movepath'] = fdata['build_movepath']
+				if fdata['build_command'] != '':
+					if fdata['file_type'] == 0:
+						print('zip file')
+						zipfile = config['public_html']+'/uploads/zip/'+str(fdata['id'])+'.zip'
+						if os.path.isfile(zipfile):
+							shutil.copyfile(zipfile,config['backend']+'/input/'+key+'.zip')
+							obj['build']['type'] = 'zip'
+							
+							sock.send(obj)
+							success = True
+					elif fdata['file_type'] == 1:
+						print('git stuff')
+						obj['build']['type'] = 'git'
+						obj['build']['git'] = fdata['git_url']
+						
 						sock.send(obj)
 						success = True
 			
@@ -282,6 +291,17 @@ def parseClientInput(data,key = ''):
 			if fdata['file_type'] <= 1:
 				if fdata['file_type'] == 0:
 					print('zip file')
+					zipfile = config['public_html']+'/uploads/zip/'+str(fdata['id'])+'.zip'
+					if os.path.isfile(zipfile):
+						shutil.copyfile(zipfile,config['backend']+'/input/'+key+'.zip')
+						sock.send({
+							'type':'examin',
+							'examin':{
+								'type':'zip',
+								'key':key
+							}
+						})
+						success = True;
 				elif fdata['file_type'] == 1:
 					print('git stuff')
 					if fdata['git_url'] != '':
@@ -293,10 +313,9 @@ def parseClientInput(data,key = ''):
 								'git':fdata['git_url']
 							}
 						})
-						sql.query("UPDATE `archive_files` SET `build_command`='DETECTING' WHERE `id`=%s",[fdata['id']])
 						success = True
-			if not success:
-				sql.query("DELETE FROM `archive_queue` WHERE `id`=%s",[int(key)])
+			if success:
+				sql.query("UPDATE `archive_files` SET `build_command`='DETECTING' WHERE `id`=%s",[fdata['id']])
 	if success:
 		if 'cmd_after' in data:
 			sql.query("UPDATE `archive_queue` SET `cmd_after`=%s WHERE `id`=%s",[int(data['cmd_after']),int(key)])

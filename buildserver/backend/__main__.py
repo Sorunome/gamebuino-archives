@@ -28,6 +28,7 @@ class Chroot_jail:
 	STATE_DONE = 3
 	state = 0
 	sandbox_template_path = PATH+'sandbox/template'
+	sandbox_path = ''
 	commands = []
 	success = False
 	mount_binds = ['random','urandom','null','zero']
@@ -161,6 +162,35 @@ class Chroot_jail:
 				'fn':lambda:os.chdir(path)
 			}
 		]
+	def build_movepath(self,movepath):
+		self.commands += [
+			{
+				'type':'cmd',
+				'cmd':['mkdir','-p',movepath]
+			},
+			{
+				'type':'cmd',
+				'cmd':['rsync','-a','.',movepath+'/','--exclude','.*','--exclude','Arduino','--exclude','bin']
+			},
+#			{
+#				'type':'cmd',
+#				'shell':True,
+#				'cmd':'mv !(.arduino15|Arduino|bin) '+movepath,
+#				'noerror':True
+#			},
+			{
+				'type':'exec',
+				'fn':lambda:os.chdir(movepath)
+			},
+			{
+				'type':'cmd',
+				'cmd':['ls']
+			},
+			{
+				'type':'cmd',
+				'cmd':['pwd']
+			}
+		]
 	def build_includefiles(self,files):
 		for f in files:
 			if isinstance(f,str):
@@ -192,7 +222,14 @@ class Chroot_jail:
 				'cmd':['cp','/makefiles/'+makefile,'Makefile']
 			}
 		]
-	
+	def build_zip(self):
+		shutil.copy(PATH+'input/'+self.key+'.zip',self.sandbox_path+'/source.zip')
+		self.commands += [
+			{
+				'type':'cmd',
+				'cmd':['unzip','/source.zip','-d','/build']
+			}
+		]
 	def build_git(self,repo):
 		self.commands += [
 			{
@@ -215,6 +252,7 @@ class Chroot_jail:
 		inodirectory = ''
 		name = ''
 		include = []
+		movepath = ''
 		
 		# we try to find the ino file by <name>/<name>.ino first
 		for root, dirs, files in os.walk('.'):
@@ -240,6 +278,7 @@ class Chroot_jail:
 							c = o.read()
 							if re.search(r"void\s+setup\([^)]*\)\s*{",c) and re.search(r"void\s+loop\([^)]*\)\s*{",c):
 								print('Found you sucker!')
+								movepath = f[:-4]
 								inofile = f
 								inodirectory = root
 								break
@@ -270,7 +309,8 @@ class Chroot_jail:
 			'ino_file':inofile,
 			'path':inodirectory,
 			'filename':name,
-			'include':include
+			'include':include,
+			'movepath':movepath
 		}
 		with open('/build/.results.json','w+') as f:
 			f.write(json.dumps(json_obj))
@@ -303,6 +343,8 @@ class Chroot_jail:
 					o.flush()
 					if c['type'] == 'cmd':
 						resp = subprocess.call(c['cmd'],shell=('shell' in c and c['shell']),stdout=o,stderr=subprocess.STDOUT)
+						if 'noerror' in c and c['noerror']:
+							resp = 0
 						with open('/build/.resp_code','w+') as f:
 							f.write(str(resp))
 						if resp != 0:
@@ -336,7 +378,8 @@ class Chroot_jail:
 					'ino_file':json_data['ino_file'],
 					'filename':json_data['filename'],
 					'path':json_data['path'],
-					'include':json_data['include']
+					'include':json_data['include'],
+					'movepath':json_data['movepath']
 				})
 			except:
 				QUEUE.append({
@@ -411,6 +454,8 @@ if __name__ == '__main__':
 				print('ERROR: '+PATH+f+' exists in the filesystem')
 				sys.exit(1)
 			os.makedirs(PATH+f)
+			if f == 'input':
+				os.chmod(PATH+f,0o777)
 	jails = []
 	for i in range(config['max_jails']):
 		jails.append(Chroot_jail(i))
@@ -441,10 +486,15 @@ if __name__ == '__main__':
 							continue
 						j.build_box()
 						j.set_key(data['build']['key'])
-						if data['build']['type'] == 'git':
+						if data['build']['type'] == 'zip':
+							j.build_zip()
+						elif data['build']['type'] == 'git':
 							j.build_git(data['build']['git'])
+						
 						if 'path' in data['build']:
 							j.build_path(data['build']['path'])
+						if 'movepath' in data['build']:
+							j.build_movepath(data['build']['movepath'])
 						if 'makefile' in data['build']:
 							j.build_makefile(data['build']['makefile'])
 						j.build_command(data['build']['command'])
@@ -477,8 +527,11 @@ if __name__ == '__main__':
 							continue
 						j.build_box(j.TYPE_EXAMIN)
 						j.set_key(data['examin']['key'])
-						if data['examin']['type'] == 'git':
+						if data['examin']['type'] == 'zip':
+							j.build_zip()
+						elif data['examin']['type'] == 'git':
 							j.build_git(data['examin']['git'])
+						
 						j.build_examin()
 						j.thread.start()
 					elif data['type'] == 'done_examin':
@@ -489,7 +542,8 @@ if __name__ == '__main__':
 							'ino_file':data['ino_file'],
 							'filename':data['filename'],
 							'path':data['path'],
-							'include':data['include']
+							'include':data['include'],
+							'movepath':data['movepath']
 						})
 						data['jail'].destroy_box()
 						QUEUE.append({
