@@ -86,7 +86,7 @@
 			$.map(cats,function(v){
 				return makeCatList(v);
 			})
-		).after($("<a>").text("+ add Category").attr("href","http://add").click(function(e){
+		).after($("<a>").text("+ add Tag").attr("href","http://add").click(function(e){
 			e.preventDefault();
 			$("#categoriesContent").append(makeCatList());
 		}));

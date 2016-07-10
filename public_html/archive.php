@@ -572,6 +572,10 @@ class File{
 				$success = Upload::zipFile($this->id);
 				break;
 			case 1:
+				if($this->exists() && $this->file_type['github_repo'] == $vars['github_repo']){
+					unset($_GET['repo_url']);
+					return true; // ok, we don't actually need to change something anyways
+				}
 				$included = true;
 				include_once('github.php');
 				$u = new GithubUser($userid);
@@ -627,7 +631,8 @@ class File{
 		
 		$socket = socket_create(AF_UNIX,SOCK_STREAM,0);
 		if(!@socket_connect($socket,$frontend_socket_file)){
-			return false;
+			$db->sql_query(query_escape("INSERT INTO `archive_queue` (`file`,`type`,`status`,`output`) VALUES (%d,0,1,'')",$this->id));
+			return true;
 		}
 		$s = json_encode(array(
 			'type' => 'build',
@@ -638,18 +643,24 @@ class File{
 		return true;
 	}
 	private function examin(){
-		global $frontend_socket_file;
+		global $frontend_socket_file,$db;
 		if($this->build_command == 'DETECTING'){ // no need to run this
 			return;
 		}
-		$socket = socket_create(AF_UNIX,SOCK_STREAM,0);
-		if(!@socket_connect($socket,$frontend_socket_file)){
-			return;
-		}
-		$s = json_encode(array(
+		$data = array(
 			'type' => 'examin',
 			'fid' => $this->id
-		))."\n";
+		);
+		if(isset($_POST['autobuild_after_autopick']) && $_POST['autobuild_after_autopick']){
+			$data['cmd_after'] = 0;
+		}
+		$socket = socket_create(AF_UNIX,SOCK_STREAM,0);
+		if(!@socket_connect($socket,$frontend_socket_file)){
+			$db->sql_query(query_escape("INSERT INTO `archive_queue` (`file`,`type`,`status`,`output`,`cmd_after`) VALUES (%d,1,1,'',%d)",$this->id,isset($data['cmd_after'])?$data['cmd_after']:-1));
+			return;
+		}
+		
+		$s = json_encode($data)."\n";
 		socket_write($socket,$s,strlen($s));
 		socket_close($socket);
 	}

@@ -167,7 +167,7 @@ class SocketConnection(threading.Thread):
 					data = json.loads(line)
 					if data['type'] == 'done':
 						print(data)
-						qdata = sql.query("SELECT t1.`file`,t1.`type`,t1.`status`,t2.`public` FROM `archive_queue` AS t1 INNER JOIN `archive_files` AS t2 ON t1.`file`=t2.`id` WHERE t1.`id`=%s",[int(data['key'])])
+						qdata = sql.query("SELECT t1.`file`,t1.`type`,t1.`status`,t2.`public`,t1.`cmd_after` FROM `archive_queue` AS t1 INNER JOIN `archive_files` AS t2 ON t1.`file`=t2.`id` WHERE t1.`id`=%s",[int(data['key'])])
 						if qdata:
 							qdata = qdata[0]
 							if qdata['type'] == 0 and qdata['status'] == 2: # make sure we are building this thing
@@ -194,6 +194,11 @@ class SocketConnection(threading.Thread):
 										sql.query("UPDATE `archive_files` SET `ts_updated`=FROM_UNIXTIME(%s) WHERE `id`=%s",[timestamp,int(qdata['file'])])
 									else:
 										sql.query("UPDATE `archive_files` SET `ts_updated`=FROM_UNIXTIME(%s),`ts_added`=FROM_UNIXTIME(%s),`public`=1 WHERE `id`=%s",[timestamp,timestamp,int(qdata['file'])])
+									if qdata['cmd_after'] != -1:
+										parseClientInput({
+											'type':['build','examin'][qdata['cmd_after']],
+											'fid':qdata['file']
+										})
 								output = ''
 								try:
 									with open(config['backend']+'/output/'+str(data['key']),'r') as f:
@@ -208,12 +213,17 @@ class SocketConnection(threading.Thread):
 					elif data['type'] == 'done_examin':
 						print(data)
 						
-						qdata = sql.query("SELECT t1.`file`,t1.`type`,t1.`status` FROM `archive_queue` AS t1 INNER JOIN `archive_files` AS t2 ON t1.`file`=t2.`id` WHERE t1.`id`=%s",[int(data['key'])])
+						qdata = sql.query("SELECT t1.`file`,t1.`type`,t1.`status`,t1.`cmd_after` FROM `archive_queue` AS t1 INNER JOIN `archive_files` AS t2 ON t1.`file`=t2.`id` WHERE t1.`id`=%s",[int(data['key'])])
 						if qdata:
 							qdata = qdata[0]
 							if qdata['type'] == 1 and qdata['status'] == 2: # we were actually examining it, so everything is fine
 								if data['success']:
 									sql.query("UPDATE `archive_files` SET `build_path`=%s,`build_command`=%s,`build_makefile`=1,`build_filename`=%s WHERE `id`=%s",[data['path'],'make INO_FILE='+data['ino_file']+' NAME=%name%',data['filename'],qdata['file']])
+									if qdata['cmd_after'] != -1:
+										parseClientInput({
+											'type':['build','examin'][qdata['cmd_after']],
+											'fid':qdata['file']
+										})
 								else:
 									sql.query("UPDATE `archive_files` SET `build_command`='ERROR' WHERE `id`=%s",[qdata['file']])
 								sql.query("DELETE FROM `archive_queue` WHERE `id`=%s",[int(data['key'])])
@@ -221,6 +231,77 @@ class SocketConnection(threading.Thread):
 				except:
 					traceback.print_exc()
 		self.disconnect()
+
+def parseClientInput(data,key = ''):
+	print('>> ',data)
+	success = False
+	if data['type'] == 'build':
+		fdata = sql.query("SELECT `id`,`file_type`,`git_url`,`build_path`,`build_command`,`build_makefile`,`build_filename` FROM `archive_files` WHERE `id`=%s",[int(data['fid'])])
+		if fdata:
+			fdata = fdata[0]
+			if key:
+				sql.query("UPDATE `archive_queue` SET `status`=2 WHERE `id`=%s",[int(key)])
+			else:
+				sql.query("INSERT INTO `archive_queue` (`file`,`type`,`status`,`output`) VALUES (%s,0,2,'')",[fdata['id']])
+				key = str(sql.insertId())
+			
+			if fdata['file_type'] <= 1:
+				print(key)
+				if fdata['file_type'] == 0:
+					print('zip file')
+				elif fdata['file_type'] == 1:
+					print('git stuff')
+					fdata['build_command'] = fdata['build_command'].replace('%name%',fdata['build_filename'])
+					if fdata['build_command'] != '':
+						obj = {
+							'type':'build',
+							'build':{
+								'type':'git',
+								'git':fdata['git_url'],
+								'key':key,
+								'path':fdata['build_path'],
+								'command':fdata['build_command']
+							}
+						}
+						if fdata['build_makefile']:
+							obj['build']['makefile'] = 'gamebuino.mk'
+						sock.send(obj)
+						success = True
+			
+	elif data['type'] == 'examin':
+		fdata = sql.query("SELECT `id`,`file_type`,`git_url` FROM `archive_files` WHERE `id`=%s",[int(data['fid'])])
+		if fdata:
+			fdata = fdata[0]
+			
+			if key:
+				sql.query("UPDATE `archive_queue` SET `status`=2 WHERE `id`=%s",[int(key)])
+			else:
+				sql.query("INSERT INTO `archive_queue` (`file`,`type`,`status`,`output`) VALUES (%s,1,2,'')",[fdata['id']])
+				key = str(sql.insertId())
+			print(key)
+			if fdata['file_type'] <= 1:
+				if fdata['file_type'] == 0:
+					print('zip file')
+				elif fdata['file_type'] == 1:
+					print('git stuff')
+					if fdata['git_url'] != '':
+						sock.send({
+							'type':'examin',
+							'examin':{
+								'type':'git',
+								'key':key,
+								'git':fdata['git_url']
+							}
+						})
+						sql.query("UPDATE `archive_files` SET `build_command`='DETECTING' WHERE `id`=%s",[fdata['id']])
+						success = True
+			if not success:
+				sql.query("DELETE FROM `archive_queue` WHERE `id`=%s",[int(key)])
+	if success:
+		if 'cmd_after' in data:
+			sql.query("UPDATE `archive_queue` SET `cmd_after`=%s WHERE `id`=%s",[int(data['cmd_after']),int(key)])
+	elif key:
+		sql.query("DELETE FROM `archive_queue` WHERE `id`=%s",[int(key)])
 
 class ServerLink(server.ServerHandler):
 	readbuffer = ''
@@ -238,68 +319,7 @@ class ServerLink(server.ServerHandler):
 		for line in temp:
 			try:
 				data = json.loads(line)
-				print('>>',data)
-				if data['type'] == 'build':
-					fdata = sql.query("SELECT `id`,`file_type`,`git_url`,`build_path`,`build_command`,`build_makefile`,`build_filename` FROM `archive_files` WHERE `id`=%s",[int(data['fid'])])
-					if fdata:
-						fdata = fdata[0]
-						if fdata['file_type'] > 1:
-							continue
-						sql.query("INSERT INTO `archive_queue` (`file`,`type`,`status`,`output`) VALUES (%s,0,2,'')",[fdata['id']])
-						key = str(sql.insertId())
-						print(key)
-						success = False
-						if fdata['file_type'] == 0:
-							print('zip file')
-						elif fdata['file_type'] == 1:
-							print('git stuff')
-							fdata['build_command'] = fdata['build_command'].replace('%name%',fdata['build_filename'])
-							if fdata['build_command'] != '':
-								obj = {
-									'type':'build',
-									'build':{
-										'type':'git',
-										'git':fdata['git_url'],
-										'key':key,
-										'path':fdata['build_path'],
-										'command':fdata['build_command']
-									}
-								}
-								if fdata['build_makefile']:
-									obj['build']['makefile'] = 'gamebuino.mk'
-								sock.send(obj)
-								success = True
-						if not success:
-							sql.query("DELETE FROM `archive_queue` WHERE `id`=%s",[int(key)])
-				elif data['type'] == 'examin':
-					fdata = sql.query("SELECT `id`,`file_type`,`git_url` FROM `archive_files` WHERE `id`=%s",[int(data['fid'])])
-					if fdata:
-						fdata = fdata[0]
-						if fdata['file_type'] > 1:
-							continue
-						
-						sql.query("INSERT INTO `archive_queue` (`file`,`type`,`status`,`output`) VALUES (%s,1,2,'')",[fdata['id']])
-						key = str(sql.insertId())
-						print(key)
-						success = False
-						
-						if fdata['file_type'] == 0:
-							print('zip file')
-						elif fdata['file_type'] == 1:
-							print('git stuff')
-							if fdata['git_url'] != '':
-								sock.send({
-									'type':'examin',
-									'examin':{
-										'type':'git',
-										'key':key,
-										'git':fdata['git_url']
-									}
-								})
-								sql.query("UPDATE `archive_files` SET `build_command`='DETECTING' WHERE `id`=%s",[fdata['id']])
-								success = True
-						if not success:
-							sql.query("DELETE FROM `archive_queue` WHERE `id`=%s",[int(key)])
+				parseClientInput(data)
 			except:
 				traceback.print_exc()
 		return True
@@ -307,22 +327,16 @@ class ServerLink(server.ServerHandler):
 if __name__ == '__main__':
 	sock = SocketConnection(config['backend']+'/socket.sock')
 	sock.start()
-	#sock.send({
-	#	'type':'examin',
-	#	'examin':{
-	#		'type':'git',
-	#		'key':'asdf',
-	#		'git':'git://github.com/Sorunome/blockdude-gamebuino.git',
-	#		'path':'blockdude',
-	#		'makefile':{
-	#			'ino':'blockdude.ino',
-	#			'name':'BLOKDUDE'
-	#		},
-	#		'include':['../BLOKDUDE.INF']
-	#	}
-	#})
+	
 	srv = server.Server(PATH+'/socket.sock',0,ServerLink)
 	srv.start()
+	res = sql.query("SELECT `id`,`file`,`type` FROM `archive_queue` WHERE `status`=1") # get the queued things from when we were offline
+	for r in res:
+		print('Old Command: ',r)
+		parseClientInput({
+			'type':['build','examin'][r['type']],
+			'fid':r['file']
+		},str(r['id']))
 	try:
 		while True:
 			time.sleep(30)

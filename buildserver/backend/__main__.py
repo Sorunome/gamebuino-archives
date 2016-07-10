@@ -302,7 +302,7 @@ class Chroot_jail:
 					o.write('Executing command '+str(c)+':\n')
 					o.flush()
 					if c['type'] == 'cmd':
-						resp = subprocess.call(c['cmd'],shell=('shell' in c and c['shell']),stdout=o)
+						resp = subprocess.call(c['cmd'],shell=('shell' in c and c['shell']),stdout=o,stderr=subprocess.STDOUT)
 						with open('/build/.resp_code','w+') as f:
 							f.write(str(resp))
 						if resp != 0:

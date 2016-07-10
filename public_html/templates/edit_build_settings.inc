@@ -9,6 +9,8 @@
 	{#endif}
 	<label>Automatically pick settings: <input type="checkbox" name="autopick_build_settings" value="1"{#if !{{exists}}} checked="checked"{#endif}></label>
 			{!getHelpHTML('Automatically try to detect the values needed to build your package')}<br>
+	<span id="autobuild"{#if {{exists}}} class="hidden"{#endif}><label>Automatically build on success: <input type="checkbox" name="autobuild_after_autopick" value="1" checked="checked"></label>
+			{!getHelpHTML('Automatically build your program if the build settings could be detected')}<br></span>
 	<label>Build path: <input type="text" name="build_path" value="{build_path}" maxlength="32"></label>
 			{!getHelpHTML('The path in which the building process will happen')}<br>
 	<label>Build command: <input type="text" name="build_command" value="{build_command}" maxlength="64"></label>
@@ -26,6 +28,11 @@
 		$('input[name="autopick_build_settings"]').click(function(e){
 			if(this.checked && $('input[name="build_command"]').val() != ''){
 				this.checked = confirm('Are you sure you want to over-write the current build settings?');
+			}
+			if(this.checked){
+				$('#autobuild').removeClass('hidden');
+			}else{
+				$('#autobuild').addClass('hidden');
 			}
 		});
 		{#if {{build_command}} == 'DETECTING'}
