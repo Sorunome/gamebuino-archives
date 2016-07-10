@@ -15,7 +15,7 @@
 			{!getHelpHTML('The path in which the building process will happen')}<br>
 	<label>Build command: <input type="text" name="build_command" value="{build_command}" maxlength="64"></label>
 			{!getHelpHTML('The shell command to run to be able to build this game')}<br>
-	<label>Include makefile: <input type="checkbox" name="build_makefile"{#if {{build_makefile}}} checked="checked"{#endif}></label>
+	<label>Include makefile: <input type="checkbox" name="build_makefile" value="1"{#if {{build_makefile}}} checked="checked"{#endif}></label>
 			{!getHelpHTML('Include a makefile to easily compile gamebuino projects')}<br>
 	<label>Output Filename: <input type="text" name="build_filename" value="{build_filename}" maxlength="8"></label>
 			{!getHelpHTML('Filename of the output file, max. 8 chars, all uppercase, without .HEX, e.g. MYFILE')}<br>

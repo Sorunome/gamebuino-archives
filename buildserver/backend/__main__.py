@@ -172,12 +172,6 @@ class Chroot_jail:
 				'type':'cmd',
 				'cmd':['rsync','-a','.',movepath+'/','--exclude','.*','--exclude','Arduino','--exclude','bin']
 			},
-#			{
-#				'type':'cmd',
-#				'shell':True,
-#				'cmd':'mv !(.arduino15|Arduino|bin) '+movepath,
-#				'noerror':True
-#			},
 			{
 				'type':'exec',
 				'fn':lambda:os.chdir(movepath)

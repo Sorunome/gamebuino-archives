@@ -99,7 +99,8 @@ class GithubUser {
 			return false;
 		}
 		$this->repo_url = $json['html_url'];
-		$db->sql_freeresult($db->sql_query(query_escape("UPDATE `archive_files` SET `git_url`='%s',`github_repo`='%s' WHERE `id`=%d",$json['git_url'],$json['full_name'],$fid)));
+		
+		$db->sql_query(query_escape("UPDATE `archive_files` SET `git_url`='%s',`github_repo`='%s' WHERE `id`=%d",$json['git_url'],$json['full_name'],(int)$fid));
 		return true;
 	}
 	public function getRepoUrl(){
