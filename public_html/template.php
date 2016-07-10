@@ -36,14 +36,14 @@ class Template {
 			switch($match[1]){
 				case '':
 					if($match[3][0] == '$' || strpos($match[3],'(') !== false){
-						return '<?=htmlspecialchars('.$match[3].')?>';
+						return '<?=htmlspecialchars('.$match[3].');?>';
 					}
-					return '<?=htmlspecialchars($this->'.$match[3].')?>';
+					return '<?=htmlspecialchars($this->'.$match[3].');?>';
 				case '!':
 					if($match[2][0] == '$' || strpos($match[2],'(') !== false){
-						return '<?='.$match[2].'?>';
+						return '<?='.$match[2].';?>';
 					}
-					return '<?=$this->'.$match[2].'?>';
+					return '<?=$this->'.$match[2].';?>';
 				case '#':
 					$match = explode(' ',$match[2],2);
 					switch($match[0]){
@@ -71,12 +71,12 @@ class Template {
 					$match = preg_split('/[\s]+/',$match[2],2);
 					switch($match[0]){
 						case 'global':
-							return '<?php global '.$match[1].'; ?>';
+							return '<?phpoptional global '.$match[1].'; ?>';
 						case 'children':
 							if(empty($match[1])){
-								return '<?php $this->_renderChildren(); ?>';
+								return '<?phpoptional $this->_renderChildren(); ?>';
 							}
-							return '<?php $this->_renderChildren("'.$match[1].'"); ?>';
+							return '<?phpoptional $this->_renderChildren("'.$match[1].'"); ?>';
 						case 'default':
 							$s = '';
 							foreach(explode(';',$match[1]) as $var){
@@ -84,16 +84,20 @@ class Template {
 								$s .= '"'.trim($a[0]).'" => '.$a[1].',';
 							}
 							
-							return '<?php $this->_setDefault(array('.rtrim($s,',').')); ?>';
+							return '<?phpoptional $this->_setDefault(array('.rtrim($s,',').')); ?>';
 						case 'return':
-							return '<?php return'.(isset($match[1])?' '.$match[1]:'').'; ?>';
+							return '<?phpoptional return'.(isset($match[1])?' '.$match[1]:'').'; ?>';
 						case 'set':
 							$match = preg_split('/[\s]+/',$match[1],2);
-							return '<?php '.$match[0].'='.$match[1].'; ?>';
+							return '<?phpoptional '.$match[0].'='.$match[1].'; ?>';
 					}
 			}
 			return '';
 		},$f);
+		$f = preg_replace('/\?>\s*<\?php (case|default|endswitch)/','$1',$f);
+		$f = preg_replace('/\?>\s*<\?phpoptional/','',$f);
+		$f = str_replace('<?phpoptional','<?php',$f);
+		$f = str_replace('?><?php','',$f);
 		
 		if(file_put_contents($this->_cacheDir.md5($this->_file).'.inc',$f)){
 			$this->render();
