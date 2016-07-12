@@ -175,14 +175,6 @@ class Chroot_jail:
 			{
 				'type':'exec',
 				'fn':lambda:os.chdir(movepath)
-			},
-			{
-				'type':'cmd',
-				'cmd':['ls']
-			},
-			{
-				'type':'cmd',
-				'cmd':['pwd']
 			}
 		]
 	def build_includefiles(self,files):
@@ -202,7 +194,7 @@ class Chroot_jail:
 					}
 				]
 	def build_command(self,cmd):
-		cmd = ['timeout',str(config['timeout'])]+shlex.split(cmd)
+		cmd = ['trickle','-u','10','timeout',str(config['timeout'])]+shlex.split(cmd)
 		self.commands += [
 			{
 				'type':'cmd',
