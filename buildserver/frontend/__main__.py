@@ -231,7 +231,7 @@ class SocketConnection(threading.Thread):
 					traceback.print_exc()
 		self.disconnect()
 
-def parseClientInput(data,key = ''):
+def parseClientInput(data,key = '',socket = False):
 	print('>> ',data)
 	success = False
 	if data['type'] == 'build':
@@ -276,6 +276,10 @@ def parseClientInput(data,key = ''):
 						
 						sock.send(obj)
 						success = True
+			if success and socket:
+				socket.sendall(bytes(json.dumps({
+					'id':int(key)
+				})+'\n','utf-8'));
 			
 	elif data['type'] == 'examin':
 		fdata = sql.query("SELECT `id`,`file_type`,`git_url` FROM `archive_files` WHERE `id`=%s",[int(data['fid'])])
@@ -338,7 +342,7 @@ class ServerLink(server.ServerHandler):
 		for line in temp:
 			try:
 				data = json.loads(line)
-				parseClientInput(data)
+				parseClientInput(data,socket = self.socket)
 			except:
 				traceback.print_exc()
 		return True

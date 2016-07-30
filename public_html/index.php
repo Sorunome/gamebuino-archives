@@ -242,21 +242,50 @@ if(request_var('file',false)){
 		$body_template->title = 'Error';
 	}
 	$templates[] = $t;
-}elseif(request_var('edit_builds',false)){
-	$f = new File(request_var('edit_builds','invalid'));
-	header('Content-Type: text/html');
-	foreach($f->template_builds() as $b){
-		$b->render();
+}elseif(request_var('get_build',false)){
+	global $db;
+	$result = $db->sql_query(query_escape("SELECT `id`,`status`,UNIX_TIMESTAMP(`ts`) AS `ts`,`file` FROM `archive_queue` WHERE `type`=0 AND `id`=%d",(int)request_var('get_build','invalid')));
+	header('Content-Type: application/json');
+	if($b = $db->sql_fetchrow($result)){
+		$f = new File($b['file']);
+		if($f->canEdit()){
+			$t = new Template('edit_build.inc');
+			$t->id = (int)$b['id'];
+			$t->status = (int)$b['status'];
+			$t->ts = (int)$b['ts'];
+			
+			ob_start();
+			$t->render();
+			$t = ob_get_contents();
+			ob_end_clean();
+			echo json_encode(array(
+				'success' => true,
+				'pending' => ($b['status'] == 1 || $b['status'] == 2),
+				'html' => $t
+			));
+		}else{
+			echo json_encode(array(
+				'success' => false
+			));
+		}
+	}else{
+		echo json_encode(array(
+			'success' => false
+		));
 	}
+	
 }elseif(request_var('save',false)){
 	$body_template->title = 'Saving';
 	$f = new File(request_var('save','invalid'));
 	$templates[] = $f->save();
 }elseif(request_var('build',false)){
+	global $db;
 	$f = new File(request_var('build','invalid'));
 	header('Content-Type: application/json');
+	$id = $f->build();
 	echo json_encode(array(
-		'success' => $f->build()
+		'success' => $id != -1,
+		'id' => $id
 	));
 }elseif(request_var('build_message',false)){
 	header('Content-Type: text/plain');

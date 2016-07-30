@@ -619,31 +619,42 @@ class File{
 	public function build(){
 		global $frontend_socket_file,$db;
 		if(!$this->canEdit()){
-			return false;
+			return -1;
 		}
 		$this->goedit();
 		if(empty($this->build_command)){
-			return false;
+			return -1;
 		}
 		$res = $db->sql_query(query_escape("SELECT `id` FROM `archive_queue` WHERE `file`=%d AND `type`=0 AND (`status`=1 OR `status`=2)",$this->id));
 		if($db->sql_fetchrow($res)){ // we are already building...
 			$db->sql_freeresult($res);
-			return false;
+			return -1;
 		}
 		$db->sql_freeresult($res);
 		
 		$socket = socket_create(AF_UNIX,SOCK_STREAM,0);
 		if(!@socket_connect($socket,$frontend_socket_file)){
 			$db->sql_query(query_escape("INSERT INTO `archive_queue` (`file`,`type`,`status`,`output`) VALUES (%d,0,1,'')",$this->id));
-			return true;
+			return $db->sql_nextid();
 		}
 		$s = json_encode(array(
 			'type' => 'build',
 			'fid' => $this->id
 		))."\n";
 		socket_write($socket,$s,strlen($s));
+		$b = '';
+		socket_set_option($socket,SOL_SOCKET,SO_RCVTIMEO,array('sec' => 2,'usec' => 0));
+		while($buf = socket_read($socket,2048)){
+			$b .= $buf;
+			if(strpos($b,"\n")!==false){
+				break;
+			}
+		}
 		socket_close($socket);
-		return true;
+		if($a = json_decode($b,true)){
+			return $a['id'];
+		}
+		return -1;
 	}
 	private function examin(){
 		global $frontend_socket_file,$db;
