@@ -273,7 +273,23 @@ if(request_var('file',false)){
 			'success' => false
 		));
 	}
-	
+	$db->sql_freeresult($result);
+}elseif(request_var('delete_build',false)){
+	global $db;
+	$result = $db->sql_query(query_escape("SELECT `id`,`file`,`status` FROM `archive_queue` WHERE `type`=0 AND `id`=%d",(int)request_var('delete_build','invalid')));
+	$success = false;
+	if(($b = $db->sql_fetchrow($result)) && ($b['status'] == 0 || $b['status'] == 4)){
+		$f = new File($b['file']);
+		if($f->canEdit()){
+			$db->sql_query(query_escape("DELETE FROM `archive_queue` WHERE `id`=%d",(int)$b['id']));
+			$success = true;
+		}
+	}
+	$db->sql_freeresult($result);
+	header('Content-Type: text/javascript');
+	echo json_encode(array(
+		'success' => $success
+	));
 }elseif(request_var('save',false)){
 	$body_template->title = 'Saving';
 	$f = new File(request_var('save','invalid'));

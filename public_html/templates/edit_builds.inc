@@ -8,19 +8,6 @@
 </div>
 <script type="text/javascript">
 	$(function(){
-		var parseBuilds = function(){
-				$('#edit_builds_container .view_output').click(function(e){
-					var _self = this;
-					e.preventDefault();
-					if($(this).next().is('pre')){
-						$(this).next().remove();
-						return;
-					}
-					$.get('?build_message='+this.dataset.id).done(function(data){
-						$(_self).after($('<pre>').text(data));
-					});
-				});
-			};
 		$('#edit_new_build').click(function(e){
 			e.preventDefault();
 			$.getJSON('?build={id}',function(data){
@@ -36,6 +23,5 @@
 				}
 			})
 		});
-		parseBuilds();
 	});
 </script>

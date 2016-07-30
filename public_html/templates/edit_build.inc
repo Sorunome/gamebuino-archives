@@ -1,5 +1,17 @@
 {:global $user}
 <div id="build_{id}" class="build{#if {{status}}==4} duplicate{#endif}{#if {{status}}==0} fail{#endif}">
+	{#if {{status}} == 0 || {{status}} == 4}
+		<div class="delete">x</div>
+		<script type="text/javascript">
+			$('#build_{id} .delete').off('click').click(function(e){
+				$.getJSON('?delete_build={id}',function(data){
+					if(data.success){
+						$('#build_{id}').remove();
+					}
+				});
+			});
+		</script>
+	{#endif}
 	<div>
 		Build from {date($user->data['user_dateformat'],{{ts}})}<br>
 		Status:
@@ -10,11 +22,23 @@
 		{#endswitch}
 	</div>
 	<div>
-		<a href="#" class="view_output" data-id="{id}">View Output</a>
+		<a href="#" class="view_output">View Output</a>
 	</div>
-</div>
+<script type="text/javascript">
+$(function(){
+	$('#build_{id} .view_output').off('click').click(function(e){
+		var _self = this;
+		e.preventDefault();
+		if($(this).next().is('pre')){
+			$(this).next().remove();
+			return;
+		}
+		$.get('?build_message={id}').done(function(data){
+			$(_self).after($('<pre>').text(data));
+		});
+	})
+});
 {#if {{status}} == 1 || {{status}} == 2}
-	<script type="text/javascript">
 	$(function(){
 		var $msg = $('#build_{id}_pending'),
 			append = '',
@@ -37,5 +61,7 @@
 				}
 			},1000);
 	});
-	</script>
 {#endif}
+</script>
+
+</div>

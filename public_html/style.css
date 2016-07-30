@@ -310,6 +310,20 @@ label[for="fileSorter_button"] {
 	font-family: monospace;
 	overflow:auto;
 }
+.build .delete {
+	display:inline-block;
+	background:white;
+	float:right;
+	cursor:pointer;
+	color:black;
+	width:16px;
+	height:16px;
+	border:2px solid #E55759;
+	border-radius:8px;
+	line-height:9px;
+	font-size:18px;
+	font-weight:bold;
+}
 /* build end */
 
 
