@@ -23,26 +23,27 @@ def makeUnicode(s):
 
 class Chroot_jail:
 	STATE_UNREADY = 0
-	STATE_READY = 1
-	STATE_RUNNING = 2
-	STATE_DONE = 3
-	state = 0
+	STATE_BUILDING = 1
+	STATE_READY = 2
+	STATE_RUNNING = 3
+	STATE_DONE = 4
 	sandbox_template_path = PATH+'sandbox/template'
-	sandbox_path = ''
-	commands = []
-	success = False
-	mount_binds = ['random','urandom','null','zero']
-	key = ''
-	thread = None
 	
+	mount_binds = ('random','urandom','null','zero')
+	
+	TYPE_NOBOX = -1
 	TYPE_BUILD = 0
 	TYPE_EXAMIN = 1
-	boxtype = 0
 	
 	def __init__(self,i,boxtype = TYPE_BUILD):
 		self.i = i
 		self.sandbox_path = PATH+'sandbox/box_'+str(i)
 		self.state = self.STATE_UNREADY
+		self.boxtype = self.TYPE_NOBOX
+		self.commands = []
+		self.key = ''
+		self.thread = None
+		self.success = False
 		
 	def demote_maketemplate(self):
 		os.chroot(self.sandbox_template_path)
@@ -66,12 +67,16 @@ class Chroot_jail:
 	def makeTemplate(self):
 		try:
 			print('Sandbox template absent, building...')
+			if os.path.isfile(PATH+'/sandbox/mktemplate.lock'):
+				while os.path.isfile(PATH+'/sandbox/mktemplate.lock'):
+					time.sleep(1)
+				return os.path.isdir(self.sandbox_template_path) and os.listdir(self.sandbox_template_path) != []
+			open(PATH+'/sandbox/mktemplate.lock','a').close()
 			self.rmTemplate()
 			
 			# create chroot
 			if subprocess.call(['mkarchroot',self.sandbox_template_path]+config['packages']) != 0:
-				self.rmTemplate()
-				return False
+				raise
 			# create the build user
 			subprocess.call(['groupadd','build','-g',str(GID)],preexec_fn=self.demote_maketemplate)
 			subprocess.call(['useradd','build','-d','/build','-M','-u',str(UID),'-g',str(GID)],preexec_fn=self.demote_maketemplate)
@@ -111,28 +116,34 @@ class Chroot_jail:
 			
 			for t in self.mount_binds:
 				subprocess.call(['umount',self.sandbox_template_path+'/dev/'+t])
+			os.remove(PATH+'/sandbox/mktemplate.lock')
 			return True
 		except:
 			self.rmTemplate()
 			traceback.print_exc()
+			os.remove(PATH+'/sandbox/mktemplate.lock')
 			return False
-	def build_box(self,boxtype = 0):
-		print('Building sandbox box_'+str(self.i)+' ...')
+	def setBoxType(self,boxtype):
 		self.boxtype = boxtype
+	def build_box(self):
+		print('Building sandbox box_'+str(self.i)+' ...')
 		try:
 			self.success = False
 			if self.state == self.STATE_READY:
 				return True
 			if self.state != self.STATE_UNREADY:
 				raise
-			
-			if not os.path.isdir(PATH+'sandbox/template'):
+			self.state = self.STATE_BUILDING
+			if os.path.isfile(PATH+'/sandbox/mktemplate.lock'):
 				if not self.makeTemplate():
 					raise
-			if os.listdir(PATH+'sandbox/template') == []:
+			if not os.path.isdir(self.sandbox_template_path):
 				if not self.makeTemplate():
 					raise
-			self.destroy_box()
+			if os.listdir(self.sandbox_template_path) == []:
+				if not self.makeTemplate():
+					raise
+			self.destroy_box(False)
 			
 			os.mkdir(self.sandbox_path)
 			
@@ -149,10 +160,13 @@ class Chroot_jail:
 			traceback.print_exc()
 			self.doneQueue()
 			return False
-	def destroy_box(self):
+	def destroy_box(self,triggerBuild = True):
 		if os.path.isdir(self.sandbox_path):
 			shutil.rmtree(self.sandbox_path)
 		self.state = self.STATE_UNREADY
+		self.boxtype = self.TYPE_NOBOX
+		if triggerBuild:
+			threading.Thread(target=self.build_box).start()
 	def set_key(self,key):
 		self.key = key
 	def build_path(self,path):
@@ -345,6 +359,7 @@ class Chroot_jail:
 			self.success = False
 			self.state = self.STATE_DONE # just trash the chroot
 	def doneQueue(self):
+		self.state = self.STATE_DONE # we need to trash the chroot, it may be unsafe!
 		if self.boxtype == self.TYPE_BUILD:
 			QUEUE.append({
 				'type':'done',
@@ -378,7 +393,9 @@ class Chroot_jail:
 					'path':'',
 					'include':[]
 				})
-		self.state = self.STATE_DONE # we need to trash the chroot, it may be unsafe!
+		else:
+			self.destroy_box()
+		
 	def run(self):
 		if self.state != self.STATE_READY:
 			self.doneQueue()
@@ -422,11 +439,7 @@ class ServerLink(server.ServerHandler):
 			try:
 				data = json.loads(line)
 				print('>>',data)
-				if data['type'] == 'build':
-					QUEUE.append(data)
-				elif data['type'] == 'destroy':
-					QUEUE.append(data)
-				elif data['type'] == 'examin':
+				if data['type'] in ('build','destroy','examin','destroy_template'):
 					QUEUE.append(data)
 			except:
 				traceback.print_exc()
@@ -442,12 +455,23 @@ if __name__ == '__main__':
 			os.makedirs(PATH+f)
 			if f == 'input':
 				os.chmod(PATH+f,0o777)
+	try:
+		if os.path.isfile(PATH+'/sandbox/mktemplate.lock'):
+			shutil.rmtree(Chroot_jail.sandbox_template_path)
+			os.remove(PATH+'/sandbox/mktemplate.lock')
+	except:
+		pass
 	jails = []
 	for i in range(config['max_jails']):
 		jails.append(Chroot_jail(i))
+	for j in jails:
+		j.destroy_box()
+	nojails = False
 	def getIdleJail():
+		if nojails:
+			return None
 		for j in jails:
-			if j.state == j.STATE_UNREADY:
+			if j.state == j.STATE_READY:
 				return j
 		return None
 	srv = server.Server(PATH+'/socket.sock',0,ServerLink)
@@ -470,7 +494,7 @@ if __name__ == '__main__':
 						if not j:
 							QUEUE.append(data) # we couldn't find a jail, let's try again later!
 							continue
-						j.build_box()
+						j.setBoxType(j.TYPE_BUILD)
 						j.set_key(data['build']['key'])
 						if data['build']['type'] == 'zip':
 							j.build_zip()
@@ -511,7 +535,7 @@ if __name__ == '__main__':
 						if not j:
 							QUEUE.append(data) # we couldn't find a jail, let's try again later!
 							continue
-						j.build_box(j.TYPE_EXAMIN)
+						j.setBoxType(j.TYPE_EXAMIN)
 						j.set_key(data['examin']['key'])
 						if data['examin']['type'] == 'zip':
 							j.build_zip()
@@ -546,6 +570,21 @@ if __name__ == '__main__':
 							os.remove(outfile)
 						except:
 							pass
+					elif data['type'] == 'destroy_template':
+						nojails = True
+						
+						jails_busy = False
+						for j in jails:
+							if j.state != j.STATE_READY:
+								jails_busy = True
+						if jails_busy:
+							QUEUE.append(data)
+							continue
+						jails[0].rmTemplate()
+						for j in jails:
+							j.destroy_box()
+						
+						nojails = False
 			except KeyboardInterrupt:
 				raise KeyboardInterrupt
 			except:

@@ -277,9 +277,12 @@ def parseClientInput(data,key = '',socket = False):
 						sock.send(obj)
 						success = True
 			if success and socket:
-				socket.sendall(bytes(json.dumps({
-					'id':int(key)
-				})+'\n','utf-8'));
+				try:
+					socket.sendall(bytes(json.dumps({
+						'id':int(key)
+					})+'\n','utf-8'))
+				except:
+					pass
 			
 	elif data['type'] == 'examin':
 		fdata = sql.query("SELECT `id`,`file_type`,`git_url` FROM `archive_files` WHERE `id`=%s",[int(data['fid'])])
@@ -320,6 +323,11 @@ def parseClientInput(data,key = '',socket = False):
 						success = True
 			if success:
 				sql.query("UPDATE `archive_files` SET `build_command`='DETECTING' WHERE `id`=%s",[fdata['id']])
+	elif data['type'] == 'destroy_template':
+		sock.send({
+			'type':'destroy_template'
+		})
+		return
 	if success:
 		if 'cmd_after' in data:
 			sql.query("UPDATE `archive_queue` SET `cmd_after`=%s WHERE `id`=%s",[int(data['cmd_after']),int(key)])

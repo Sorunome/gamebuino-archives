@@ -6,6 +6,20 @@ if(!$isAdmin){
 	header('Location:.');
 	exit;
 }
+function wipeBoxTemplate(){
+	global $frontend_socket_file;
+	$socket = socket_create(AF_UNIX,SOCK_STREAM,0);
+	if(!@socket_connect($socket,$frontend_socket_file)){
+		return false;
+	}
+	
+	$s = json_encode(array(
+		'type' => 'destroy_template'
+	))."\n";
+	socket_write($socket,$s,strlen($s));
+	socket_close($socket);
+	return true;
+}
 
 $templates = array();
 $body_template = new Template('body.inc');
@@ -21,6 +35,23 @@ if(isset($_GET['clearTemplateCache'])){
 		}
 	}
 	$messages[] = 'Cleared the template file cache!';
+}elseif(isset($_GET['wipeBoxTemplate']) || isset($_GET['triggerBuilds'])){
+	if(!wipeBoxTemplate()){
+		$messages[] = "Couldn't connect to backend!";
+	}else{
+		$messages[] = 'Triggered wiping of the sandbox template!';
+		if(isset($_GET['triggerBuilds'])){
+			$res = $db->sql_query("SELECT ".FILE_EXTRA_FRAGMENT.",".FILE_SELECT." WHERE t1.`build_use`=1 AND t1.`autobuild`=1");
+			$i = 0;
+			while($o = $db->sql_fetchrow($res)){
+				$f = new File($o,true);
+				$f->build();
+				$i++;
+			}
+			$db->sql_freeresult($res);
+			$messages[] = 'Triggered building for '.$i.' files';
+		}
+	}
 }
 $t->messages = $messages;
 
