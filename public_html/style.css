@@ -77,6 +77,13 @@ footer {
 	}
 }
 
+.admin_message {
+	border: 1px solid black;
+	padding: 5px;
+	margin-bottom: 5px;
+	background-color:#FFFD9B;
+}
+
 /* file sorter start */
 #fileSorter {
 	-webkit-touch-callout: none;

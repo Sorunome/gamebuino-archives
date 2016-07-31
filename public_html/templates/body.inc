@@ -13,12 +13,12 @@
 <body><?php include('../navbar/navbar.html'); ?>
 	<h1><a href="."><img src="/navbar/gamebuino_logo_160.png" alt="gamebuino"> Games</a></h1><br>
 	<div class="centercont buttongroup">
-		<a class="button" href=".">Show files</a>
+		<a class="button" href="./">Show files</a>
 		{#if $isLoggedIn}
 			<a class="button" href="/forum/ucp.php?mode=logout">Logout [ {$username} ]</a>
-			<a class="button" href="?edit=-1">Upload file</a>
+			<a class="button" href="./?edit=-1">Upload file</a>
 			{#if $isAdmin}
-				<span class="button">Admin</span>
+				<a class="button" href="./admin.php">Admin</a>
 			{#endif}
 		{#else}
 			<a class="button" href="/forum/ucp.php?mode=register">Register</a>
