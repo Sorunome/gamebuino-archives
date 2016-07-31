@@ -6,69 +6,146 @@ function panic(){
 	die();
 }
 
-function getDlFiles($fid){
-	$zip = new ZipArchive();
-	if($zip->open(Upload::getZipName($fid)) !== false){
-		$a = array();
-		$allFiles = array();
-		if(($s = $zip->getFromName('download.txt')) !== false){
-			$searchArray = explode("\n",$s);
-			for($i = 0;$i < $zip->numFiles;$i++){
-				$n = $zip->getNameIndex($i);
-				$allFiles[] = $n;
-				if(in_array($n,$searchArray)){
-					$a[] = $n;
+function getDlFiles($info){
+	switch($info['type']){
+		case 'zip':
+			$zip = new ZipArchive();
+			if(!$zip->open(Upload::getZipName($info['id']))){
+				return false;
+			}
+			$a = array();
+			$allFiles = array();
+			if($s = $zip->getFromName('download.txt')){
+				$searchArray = explode("\n",$s);
+				for($i = 0;$i < $zip->numFiles;$i++){
+					$n = $zip->getNameIndex($i);
+					$allFiles[] = $n;
+					if(in_array($n,$searchArray)){
+						$a[] = $n;
+					}
+				}
+			}else{
+				for($i = 0;$i < $zip->numFiles;$i++){
+					$n = $zip->getNameIndex($i);
+					$allFiles[] = $n;
+					if(preg_match('@^([^/]+\.(HEX|INF))$@i',$n,$name)){
+						$a[] = $name[0];
+					}
 				}
 			}
-		}else{
-			for($i = 0;$i < $zip->numFiles;$i++){
-				$n = $zip->getNameIndex($i);
-				$allFiles[] = $n;
-				if(preg_match('@^([^/]+\.(HEX|INF))$@i',$n,$name)){
-					$a[] = $name[0];
+			$zip->close();
+			if(sizeof($a) == 0){
+				$a = $allFiles;
+			}
+			foreach($a as &$i){
+				$i = array(
+					'in' => $i,
+					'out' => $i
+				);
+			}
+			return array(
+				'type' => 'zip',
+				'name' => Upload::getZipName($info['id']),
+				'files' => $a
+			);
+		case 'build':
+			$folder = '';
+			if(!is_dir('files/gb1/'.$info['id'])){
+				return false;
+			}
+			if(isset($_GET['time']) && is_numeric($_GET['time'])){
+				$folder = 'files/gb1/'.$info['id'].'/'.$_GET['time'];
+			}else{
+				$latest = 0;
+				foreach(scandir('files/gb1/'.$info['id']) as $ts){
+					if(is_numeric($ts) && $ts > $latest){
+						$latest = $ts;
+					}
+				}
+				if(!$latest){
+					return false;
+				}
+				$folder = 'files/gb1/'.$info['id'].'/'.$latest;
+			}
+			if(!$folder || !is_dir($folder)){
+				return false;
+			}
+			$folder = realpath($folder);
+			
+			$a = array();
+			$files = new RecursiveIteratorIterator(
+				new RecursiveDirectoryIterator($folder),
+				RecursiveIteratorIterator::LEAVES_ONLY
+			);
+			foreach($files as $file){
+				if(!$file->isDir()){
+					$filePath = $file->getRealPath();
+					$relativePath = substr($filePath,strlen($folder)+1);
+					$a[] = array(
+						'in' => $filePath,
+						'out' => $relativePath
+					);
 				}
 			}
-		}
-		$zip->close();
-		if(sizeof($a) == 0){
-			$a = $allFiles;
-		}
-		
-		return $a;
-	}else{
-		return false;
+			return array(
+				'type' => 'files',
+				'files' => $a
+			);
+	}
+	return false;
+}
+function _populateZip_inner($zip,$pattern){
+	switch($pattern['type']){
+		case 'zip':
+			$oldzip = new ZipArchive();
+			if(!$oldzip->open($pattern['name'])){
+				return;
+			}
+			foreach($pattern['files'] as $f){
+				if(!$f['out']){
+					continue;
+				}
+				$zip->addFromString($f['out'],$oldzip->getFromName($f['in']));
+			}
+			return;
+		case 'files':
+			foreach($pattern['files'] as $f){
+				if(!$f['out']){
+					continue;
+				}
+				$zip->addFile($f['in'],$f['out']);
+			}
+			return;
 	}
 }
-function getDlFilesMult($fids){
-	$rename = 0;
-	$curFilenames = array();
-	$dlChangeNames = array();
-	foreach($fids as $fid){
-		$fdl = getDlFiles($fid) or panic();
-		$dlChangeNames[$fid] = array();
-		foreach($fdl as $f){
-			$nf = $f;
-			$dofile = true;
-			if(in_array($f,$curFilenames)){
-				$dofile = false;
-				if($rename < 1){
-					$rename = 1;
-				}
-				if(preg_match('#([ !\#$%\'()+-.\d;=@-\[\]-{}~]+)\.(\w+)$#',$f,$name)){
-					$dofile = true;
-					for ($i = 0; in_array($name[0],$curFilenames); $name[0] = $name[1] . '-' . (++$i) . '.' . $name[2]);
-					$nf = $name[0];
-				}elseif($rename < 2){
-					$rename = 2;
-				}
-			}
-			if($dofile){
-				$curFilenames[] = $nf;
-				$dlChangeNames[$fid][$f] = $nf;
-			}
-		}
+function populateZip($pattern){
+	$zippath = 'tmp/'.generateRandomString().time().'.zip';
+	$zip = new ZipArchive();
+	if(!$zip->open($zippath, ZIPARCHIVE::CREATE)){
+		return false;
 	}
-	return array($rename,$dlChangeNames);
+	if(count(array_filter(array_keys($pattern),'is_string'))==0){
+		foreach($pattern as $p){
+			_populateZip_inner($zip,$p);
+		}
+	}else{
+		_populateZip_inner($zip,$pattern);
+	}
+	$zip->close();
+	return $zippath;
+}
+
+function dlZip($zippath,$name = 'gamebuino.zip'){
+	if(!$zippath || !file_exists($zippath)){
+		return false;
+	}
+	header('Content-Type: application/zip');
+	header('Content-Disposition: attachment; filename='.$name);
+	header('Content-length: '.filesize($zippath));
+	header('Proagma: no-cache');
+	header('Expires: 0');
+	readfile($zippath);
+	return true;
 }
 if(request_var('id',false)){
 	$f = new File(request_var('id','invalid'),true);
@@ -81,72 +158,54 @@ if(request_var('id',false)){
 	
 	$zippath = '';
 	$delzip = false;
-	if($i['type'] == 'zip'){
-		if(isset($_GET['all'])){
-			$zippath = Upload::getZipName($i['id']);
-		}else{
-			$dlFiles = getDlFiles($i['id']) or panic();
-			$newzip = new ZipArchive();
-			$oldzip = new ZipArchive();
-			$zippath = 'tmp/'.generateRandomString().time().'.zip';
-			($oldzip->open(Upload::getZipName($i['id'])) && $newzip->open($zippath, ZIPARCHIVE::CREATE)) or panic();
-			foreach($dlFiles as $f){
-				$newzip->addFromString($f,$oldzip->getFromName($f));
-			}
-			$oldzip->close();
-			$newzip->close();
-			
-			$delzip = true;
-		}
-	}elseif($i['type'] == 'build'){
-		$folder = '';
-		is_dir('files/gb1/'.$i['id']) or panic();
-		if(isset($_GET['time']) && is_numeric($_GET['time'])){
-			$folder = 'files/gb1/'.$i['id'].'/'.$_GET['time'];
-		}else{
-			$latest = 0;
-			foreach(scandir('files/gb1/'.$i['id']) as $ts){
-				if(is_numeric($ts) && $ts > $latest){
-					$latest = $ts;
-				}
-			}
-			$latest or panic();
-			$folder = 'files/gb1/'.$i['id'].'/'.$latest;
-		}
-		$folder or panic();
-		is_dir($folder) or panic();
-		$folder = realpath($folder);
-		
-		$zippath = 'tmp/'.generateRandomString().time().'.zip';
-		$zip = new ZipArchive();
-		$zip->open($zippath, ZIPARCHIVE::CREATE) or panic();
-		$files = new RecursiveIteratorIterator(
-			new RecursiveDirectoryIterator($folder),
-			RecursiveIteratorIterator::LEAVES_ONLY
-		);
-		foreach($files as $file){
-			if(!$file->isDir()){
-				$filePath = $file->getRealPath();
-				$relativePath = substr($filePath,strlen($folder)+1);
-				$zip->addFile($filePath,$relativePath);
-			}
-		}
-		$zip->close();
-		
+	if($i['type'] == 'zip' && isset($_GET['all'])){
+		$zippath = Upload::getZipName($i['id']);
+	}else{
+		$dlFiles = getDlFiles($i) or panic();
+		$zippath = populateZip($dlFiles) or panic();
 		$delzip = true;
 	}
+	dlZip($zippath,$i['filename']) or panic();
 	
-	$zippath or panic();
-	file_exists($zippath) or panic();
-	
-	header('Content-Type: application/zip');
-	header('Content-Disposition: attachment; filename='.$i['filename']);
-	header('Content-length: '.filesize($zippath));
-	header('Proagma: no-cache');
-	header('Expires: 0');
-	readfile($zippath);
 	if($delzip){
 		unlink($zippath);
 	}
 	$f->download();
+}elseif(request_var('mult',false)){
+	$s = request_var('mult','invalid');
+	preg_match('/^[0-9]+(|,[0-9]+)+$/',$s) or panic();
+	$fids = array_map('intval',explode(',',$s)); // we don't know yet if they actually exist
+	sort($fids);
+	
+	$res = $db->sql_query("SELECT ".FILE_EXTRA_FRAGMENT.",".FILE_SELECT." WHERE t1.`id` IN (".implode(',',$fids).") ORDER BY t1.`id` ASC");
+	$files = array();
+	while($o = $db->sql_fetchrow($res)){
+		$files[] = new File($o,true);
+	}
+	$db->sql_freeresult($res);
+	$dlFiles = array();
+	$knownFiles = array();
+	foreach($files as $f){
+		$d = getDlFiles($f->downloadInfo()) or panic();
+		foreach($d['files'] as &$df){
+			if(in_array($df['out'],$knownFiles)){
+				if(preg_match('#([ !\#$%\'()+-.\d;=@-\[\]-{}~]+)\.(\w+)$#',$df['out'],$name)){
+					for ($i = 0; in_array($name[0],$knownFiles); $name[0] = $name[1] . '-' . (++$i) . '.' . $name[2]);
+					$df['out'] = $name[0];
+				}else{
+					$df['out'] = '';
+					continue;
+				}
+			}
+			$knownFiles[] = $df['out'];
+		}
+		$dlFiles[] = $d;
+	}
+	
+	$zippath = populateZip($dlFiles) or panic();
+	dlZip($zippath) or panic();
+	unlink($zippath);
+	foreach($files as $f){
+		$f->download();
+	}
 }

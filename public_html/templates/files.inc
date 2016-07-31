@@ -111,7 +111,7 @@
 	$(function(){
 		var DLIds = [],
 			updateDlUrl = function(){
-				$("#downloadselectedfiles").attr("href","?dlmult="+DLIds.join(","));
+				$("#downloadselectedfiles").attr("href","./download.php?mult="+DLIds.join(","));
 			};
 		$(".fileDlCheckbox").prop("checked",false).change(function(){
 			var fid = this.dataset.id;
@@ -134,7 +134,7 @@
 			$(".fileDlCheckbox").prop("checked",false);
 			DLIds = [];
 			updateDlUrl();
-		});
+		});/*
 		$("#downloadselectedfiles").click(function(e){
 			if(DLIds.length < 1){
 				e.preventDefault();
@@ -156,7 +156,7 @@
 					$("#selectedfilesgroup").append($elem);
 				}
 			})
-		})
+		});*/
 	});
 	$(function(){
 		var cursort = <?=$cursort?>,
