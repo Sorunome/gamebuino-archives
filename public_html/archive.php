@@ -11,7 +11,7 @@ if(isset($request)){
 	$request->enable_super_globals();
 }
 
-define('FILE_EXTRA_FRAGMENT',"t1.`filename`,t1.`category`,t1.`forum_url`,t1.`repo_url`,t1.`version`,t1.`complexity`,UNIX_TIMESTAMP(t1.`ts_updated`) AS `ts_updated`,UNIX_TIMESTAMP(t1.`ts_added`) AS `ts_added`,t1.`hits`");
+define('FILE_EXTRA_FRAGMENT',"t1.`filename`,t1.`category`,t1.`forum_url`,t1.`repo_url`,t1.`version`,t1.`complexity`,UNIX_TIMESTAMP(t1.`ts_updated`) AS `ts_updated`,UNIX_TIMESTAMP(t1.`ts_added`) AS `ts_added`,t1.`hits`,t1.`build_use`");
 define('FILE_SELECT',"t1.`id`,t1.`author`,t1.`description`,t1.`images`,t1.`name`,t1.`downloads`,t1.`upvotes`,t1.`downvotes`,t2.`username`,t1.`public` FROM `archive_files` AS t1 INNER JOIN ".USERS_TABLE." AS t2 ON t1.`author` = t2.`user_id`");
 define('FILE_EXTRA_SELECT',FILE_EXTRA_FRAGMENT." FROM `archive_files` AS t1");
 define('AUTHOR_SELECT',"t1.`username`,t1.`user_id`,COUNT(t2.`id`) AS `files` FROM ".USERS_TABLE." AS t1 INNER JOIN `archive_files` AS t2 ON t1.`user_id`=t2.`author`");
@@ -280,6 +280,7 @@ class File{
 	private $ts_updated = 0;
 	private $ts_added = 0;
 	private $hits = 0;
+	private $build_use = true;
 	
 	private $edit = false;
 	private $file_type = array('type' => 0);
@@ -319,6 +320,7 @@ class File{
 		$this->ts_updated = (int)$obj['ts_updated'];
 		$this->ts_added = (int)$obj['ts_added'];
 		$this->hits = (int)$obj['hits'];
+		$this->build_use = $obj['build_use']?true:false;
 		
 		$this->extra = true;
 	}
@@ -408,11 +410,11 @@ class File{
 		);
 	}
 	public function json(){
-		if(!$this->extra){
-			$this->goextra();
-		}
+		$this->goextra();
+		
 		return array_merge($this->json_short(),array(
 			'can_edit' => $this->canEdit(),
+			'can_view' => $this->canView(),
 			'hits' => $this->hits,
 			'downloads' => $this->downloads,
 			'ts_added' => $this->ts_added,
@@ -423,13 +425,13 @@ class File{
 			'forum_url' => $this->forum_url,
 			'repo_url' => $this->repo_url,
 			'images' => $this->images,
-			'categories' => $this->categories
+			'categories' => $this->categories,
+			'build_use' => $this->build_use
 		));
 	}
 	public function json_edit(){
-		if(!$this->edit){
-			$this->goedit();
-		}
+		$this->goedit();
+		
 		return array_merge($this->json(),array(
 			'file_type' => $this->file_type,
 			'autobuild' => $this->autobuild,
@@ -539,6 +541,9 @@ class File{
 	public function canEdit(){
 		global $userid,$isAdmin,$isLoggedIn;
 		return $userid == $this->authorId || $isAdmin || (!$this->exists() && $isLoggedIn);
+	}
+	public function canView(){
+		return !$this->exists() || $this->public || $this->canEdit();
 	}
 	private function validate_save_vars($vars){
 		global $db;
@@ -663,14 +668,15 @@ class File{
 		}
 		$data = array(
 			'type' => 'examin',
-			'fid' => $this->id
+			'fid' => $this->id,
+			'cmd_after' => -1
 		);
 		if(isset($_POST['autobuild_after_autopick']) && $_POST['autobuild_after_autopick']){
 			$data['cmd_after'] = 0;
 		}
 		$socket = socket_create(AF_UNIX,SOCK_STREAM,0);
 		if(!@socket_connect($socket,$frontend_socket_file)){
-			$db->sql_query(query_escape("INSERT INTO `archive_queue` (`file`,`type`,`status`,`output`,`cmd_after`) VALUES (%d,1,1,'',%d)",$this->id,isset($data['cmd_after'])?$data['cmd_after']:-1));
+			$db->sql_query(query_escape("INSERT INTO `archive_queue` (`file`,`type`,`status`,`output`,`cmd_after`) VALUES (%d,1,1,'',%d)",$this->id,$data['cmd_after']));
 			return;
 		}
 		
@@ -685,12 +691,6 @@ class File{
 		}
 		$this->goedit();
 		$newFile = !$this->exists();
-		if(isset($_POST['omit_build_settings']) && $_POST['omit_build_settings']){
-			unset($_POST['build_path']);
-			unset($_POST['build_command']);
-			unset($_POST['build_makefile']);
-			unset($_POST['build_filename']);
-		}
 		$vars = array_merge(array(
 			'name' => '',
 			'description' => '',
@@ -710,15 +710,30 @@ class File{
 			'build_makefile' => 0,
 			'build_filename' => '',
 			'build_movefile' => '',
-			'autobuild' => 0
+			'autobuild' => 0,
+			'build_use' => 0
 		),$_POST);
+		
 		$vars['complexity'] = (int)$vars['complexity'];
 		$vars['version'] = (int)$vars['version'];
 		$vars['file_type'] = (int)$vars['file_type'];
 		$vars['build_makefile'] = (int)$vars['build_makefile'];
 		$vars['autobuild'] = (int)$vars['autobuild'];
+		$vars['build_use'] = (int)$vars['build_use'];
 		$vars['forum_url'] = getUrl_safe($vars['forum_url']);
 		$vars['repo_url'] = getUrl_safe($vars['repo_url']);
+		
+		foreach(array('build_makefile','autobuild','build_use') as $a){ // checkboxes aren't in $_POST
+			$_POST[$a] = $vars[$a];
+		}
+		
+		if(isset($_POST['omit_build_settings']) && $_POST['omit_build_settings']){
+			unset($_POST['build_path']);
+			unset($_POST['build_command']);
+			unset($_POST['build_makefile']);
+			unset($_POST['build_filename']);
+			unset($_POST['build_movefile']);
+		}
 		if(!$this->validate_save_vars($vars)){
 			return 'Missing required fields';
 		}
@@ -745,7 +760,7 @@ class File{
 		$imagesarray = $this->imagearray_save_vars($vars);
 		$query = "UPDATE `archive_files` SET";
 		$params = array();
-		$updateVars = array('name','description','forum_url','repo_url','version','complexity','build_path','build_command','build_makefile','build_filename','autobuild','build_movefile');
+		$updateVars = array('name','description','forum_url','repo_url','version','complexity','build_path','build_command','build_makefile','build_filename','autobuild','build_movefile','build_use');
 		foreach(array_merge($updateVars,array('category')) as $v){
 			if(isset($_POST[$v])){
 				$query .= "`$v`='%s',";
@@ -753,6 +768,7 @@ class File{
 			}
 		}
 		$query .= "`images`='%s' WHERE `id`=%d";
+		
 		$params[] = json_encode($imagesarray[0]);
 		$params[] = $this->id;
 		array_unshift($params,$query);
@@ -770,6 +786,31 @@ class File{
 			$this->examin();
 		}
 		return $s;
+	}
+	public function downloadInfo(){
+		if(!$this->exists() || !$this->canView()){
+			return array('type' => 'invalid');
+		}
+		$this->goextra();
+		
+		if(!$this->build_use && $this->type == 0){
+			if(!$this->filename){
+				return array('type' => 'invalid');
+			}
+			return array('type' => 'zip','filename' => $this->filename,'id' => $this->id);
+		}
+		$f = $this->filename;
+		if(!$f){
+			$f = $this->name.'.zip';
+		}
+		return array('type' => 'build','filename' => $f,'id' => $this->id);
+	}
+	public function download(){
+		global $db;
+		if(!$this->exists() || !$this->canView()){
+			return;
+		}
+		$db->sql_freeresult($db->sql_query(query_escape("UPDATE `archive_files` SET `downloads`=`downloads`+1 WHERE `id`=%d",$this->id)));
 	}
 }
 class Files{

@@ -1,5 +1,5 @@
 {:global $isLoggedIn,$user}
-{#if !{{exists}} || (!{{public}} && !{{can_edit}})}
+{#if !{{exists}} || (!{{can_view}})}
 	<b>Error: file not found</b>
 	{:return}
 {#endif}
@@ -23,7 +23,7 @@
 {#endif}
 
 <table id="fileDescription" class="descriptionTable" cellspacing="0" cellpadding="0">
-	<tr><th colspan="2"><?=$this->name?> (&nbsp;<a href="?dl={id}" download>Download</a>&nbsp;)
+	<tr><th colspan="2"><?=$this->name?> (&nbsp;<a href="download.php?id={id}" download>Download</a>&nbsp;)
 	{#if {{can_edit}}}
 		<a href="?edit={id}" id="editfile">Edit</a>
 	{#endif}</th></tr>

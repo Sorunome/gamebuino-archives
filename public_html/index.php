@@ -7,69 +7,6 @@ function panic(){
 	die();
 }
 
-function getDlFiles($fid){
-	$zip = new ZipArchive();
-	if($zip->open(Upload::getZipName($fid)) !== false){
-		$a = array();
-		$allFiles = array();
-		if(($s = $zip->getFromName('download.txt')) !== false){
-			$searchArray = explode("\n",$s);
-			for($i = 0;$i < $zip->numFiles;$i++){
-				$n = $zip->getNameIndex($i);
-				$allFiles[] = $n;
-				if(in_array($n,$searchArray)){
-					$a[] = $n;
-				}
-			}
-		}else{
-			for($i = 0;$i < $zip->numFiles;$i++){
-				$n = $zip->getNameIndex($i);
-				$allFiles[] = $n;
-				if(preg_match('@^([^/]+\.(HEX|INF))$@i',$n,$name)){
-					$a[] = $name[0];
-				}
-			}
-		}
-		$zip->close();
-		if(sizeof($a) == 0){
-			$a = $allFiles;
-		}
-		return $a;
-	}else{
-		return false;
-	}
-}
-function getDlFilesMult($fids){
-	$rename = 0;
-	$curFilenames = array();
-	$dlChangeNames = array();
-	foreach($fids as $fid){
-		$fdl = getDlFiles($fid) or panic();
-		$dlChangeNames[$fid] = array();
-		foreach($fdl as $f){
-			$nf = $f;
-			$dofile = true;
-			if(in_array($f,$curFilenames)){
-				$dofile = false;
-				if($rename < 1){
-					$rename = 1;
-				}
-				if(preg_match('#([ !\#$%\'()+-.\d;=@-\[\]-{}~]+)\.(\w+)$#',$f,$name)){
-					$dofile = true;
-					for ($i = 0; in_array($name[0],$curFilenames); $name[0] = $name[1] . '-' . (++$i) . '.' . $name[2]);
-					$nf = $name[0];
-				}elseif($rename < 2){
-					$rename = 2;
-				}
-			}
-			if($dofile){
-				$curFilenames[] = $nf;
-				$dlChangeNames[$fid][$f] = $nf;
-			}
-		}
-	}
-	return array($rename,$dlChangeNames);
-}
 
 $templates = array();
 $body_template = new Template('body.inc');
@@ -107,49 +44,6 @@ if(request_var('file',false)){
 			$html .= '<b>Couldn\'t open zip archive!</b>';
 		}*/
 	
-}elseif(request_var('dl',false)){
-	$fid = request_var('dl','invalid');
-	if((int)$fid == $fid){
-		$result = $db->sql_query(query_escape("SELECT `filename` FROM `archive_files` WHERE `id`=%d",$fid));
-		if($gamefile = $db->sql_fetchrow($result)){
-			header('Content-Type: application/zip');
-			header('Content-Disposition: attachment; filename='.$gamefile['filename']);
-			if(isset($_GET['all'])){
-				$realzip = Upload::getZipName($fid);
-			}else{
-				$dlFiles = getDlFiles($fid) or panic();
-				$newzip = new ZipArchive();
-				$oldzip = new ZipArchive();
-				$realzip = 'tmp/'.generateRandomString().time().'.zip';
-				if($oldzip->open(Upload::getZipName($fid))){
-					if($newzip->open($realzip, ZIPARCHIVE::CREATE)){
-						foreach($dlFiles as $f){
-							$newzip->addFromString($f,$oldzip->getFromName($f));
-						}
-						$oldzip->close();
-						$newzip->close();
-					}else{
-						panic();
-					}
-				}else{
-					panic();
-				}
-			}
-			header('Content-length: '.filesize($realzip));
-			header('Proagma: no-cache');
-			header('Expires: 0');
-			readfile($realzip);
-			$db->sql_freeresult($db->sql_query(query_escape("UPDATE `archive_files` SET `downloads`=`downloads`+1 WHERE `id`=%d",$fid)));
-			if(!isset($_GET['all'])){ // we only had a temp file, delete it
-				unlink($realzip);
-			}
-		}else{
-			panic();
-		}
-		$db->sql_freeresult($result);
-	}else{
-		panic();
-	}
 }elseif(request_var('dlmult',false)){
 	$s = request_var('dlmult','invalid');
 	if(preg_match('/^[0-9]+(|,[0-9]+)+$/',$s)){

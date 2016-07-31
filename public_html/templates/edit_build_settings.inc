@@ -1,5 +1,9 @@
 <div class="hidden" id="edit_build_settings">
 	<h2>Build Settings</h2>
+	<label>Use build system: <input type="checkbox" name="build_use" value="1"{#if {{build_use}}}checked="checked"{#endif}</label>
+			{!getHelpHTML('Use the build system, which allows you to automatically generate executables of your program from source!')}
+	<div id="edit_build_settings_all_fields">
+	
 	<label>Automatic builds: <input type="checkbox" name="autobuild" value="1"{#if {{autobuild}}} checked="checked"{#endif}></label>
 			{!getHelpHTML('Checking this will automatically re-build your game if there are library updates, making sure that everything is kept up-to-date!')}<br>
 	{#if {{build_command}} == 'DETECTING'}
@@ -24,9 +28,21 @@
 	{#if {{build_command}} == 'DETECTING'}
 		</div>
 	{#endif}
+	</div>
 </div>
 <script type="text/javascript">
 	$(function(){
+		$('input[name="build_use"]').on('update',function(){
+			if(this.checked){
+				$('#edit_builds_button').show();
+				$('#edit_build_settings_all_fields').removeClass('hidden');
+			}else{
+				$('#edit_builds_button').hide();
+				$('#edit_build_settings_all_fields').addClass('hidden');
+			}
+		}).click(function(e){
+			$(this).trigger('update');
+		}).trigger('update');
 		$('input[name="autopick_build_settings"]').click(function(e){
 			if(this.checked && $('input[name="build_command"]').val() != ''){
 				this.checked = confirm('Are you sure you want to over-write the current build settings?');
