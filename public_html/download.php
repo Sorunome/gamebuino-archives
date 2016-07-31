@@ -158,7 +158,7 @@ if(request_var('id',false)){
 	
 	$zippath = '';
 	$delzip = false;
-	if($i['type'] == 'zip' && isset($_GET['all'])){
+	if(isset($_GET['all'])){
 		$zippath = Upload::getZipName($i['id']);
 	}else{
 		$dlFiles = getDlFiles($i) or panic();

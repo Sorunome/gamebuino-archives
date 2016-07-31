@@ -85,3 +85,11 @@
 		<img src="uploads/screenshots/{$i}" alt="{name}" class="fileDescImage">
 	{#endif}
 {#endforeach}
+{#if {{zip}}}
+	<div id="zipcontentswrap"><div id="zipcontents">
+		<div id="zipcontentsheader">Archive contents ( <a href="./download.php?id={id}&amp;all" download>Download</a> )</div>
+		{#foreach {{zip}} as $z}
+			<div class="zipcontentsitem">{$z}</div>
+		{#endforeach}
+	</div></div>
+{#endif}

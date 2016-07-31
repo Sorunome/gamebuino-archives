@@ -16,85 +16,26 @@ $body_template->startTime = $startTime;
 if(request_var('file',false)){
 	$fid = request_var('file','invalid');
 	$f = new File($fid,true);
+	$f->visit();
 	$body_template->title = 'File not found';
 	$t = $f->template();
 	if($f->exists()){
 		$body_template->title = $t->name;
 	}
-	$templates[] = $t;
-/*		if($file->exists()){
-		$file->visit();
-		$html = $file->html();
-		
-	}*/
-	
-		/*
-		$dlFiles = getDlFiles($fid) or panic();
+	if($t->zip){
 		$zip = new ZipArchive();
-		if($zip->open($upload->getZipName($fid))){
-			$html .= '<div id="zipcontentswrap"><div id="zipcontents">
-				<div id="zipcontentsheader">Archive contents ( <a href="?dl='.$fid.'&all" download>Download all</a> )</div>';
+		if($zip->open($t->zip)){
+			$z = array();
 			for($i = 0;$i < $zip->numFiles;$i++){
-				$name = $zip->getNameIndex($i);
-				$html .= '<div class="zipcontentsitem'.(in_array($name,$dlFiles)?' dlfile':'').'">'.htmlentities($name).'</div>';
+				$z[] = $zip->getNameIndex($i);
 			}
-			$html .= '</div></div>';
-			$zip->close();
+			$t->zip = $z;
 		}else{
-			$html .= '<b>Couldn\'t open zip archive!</b>';
-		}*/
-	
-}elseif(request_var('dlmult',false)){
-	$s = request_var('dlmult','invalid');
-	if(preg_match('/^[0-9]+(|,[0-9]+)+$/',$s)){
-		$preFids = explode(',',$s); // we don't know yet if they actually exist
-		$fids = array();
-		foreach($preFids as $fid){
-			// no need to check if $fid is and int as that is implied with the regex
-			$result = $db->sql_query(query_escape("SELECT `filename` FROM `archive_files` WHERE `id`=%d",$fid));
-			if($gamefile = $db->sql_fetchrow($result)){
-				$fids[] = $fid;
-				if(!isset($_GET['info'])){
-					$db->sql_freeresult($db->sql_query(query_escape("UPDATE `archive_files` SET `downloads`=`downloads`+1 WHERE `id`=%d",$fid)));
-				}
-			}
-			$db->sql_freeresult($result);
+			$t->zip = '';
 		}
-		$dlFiles = getDlFilesMult($fids);
-		
-		if(isset($_GET['info'])){
-			header('Content-Type:application/json');
-			echo json_encode(array('stability' => $dlFiles[0]));
-		}else{
-			header('Content-Type: application/zip');
-			header('Content-Disposition: attachment; filename=gamebuino_games.zip');
-			$newzip = new ZipArchive();
-			$oldzip = new ZipArchive();
-			$realzip = 'tmp/'.generateRandomString().time().'.zip';
-			if($newzip->open($realzip, ZIPARCHIVE::CREATE)){
-				foreach($dlFiles[1] as $fid => $files){
-					if($oldzip->open(Upload::getZipName($fid))){
-						foreach($files as $oldf => $newf){
-							$newzip->addFromString($newf,$oldzip->getFromName($oldf));
-						}
-						$oldzip->close();
-					}else{
-						panic();
-					}
-				}
-				$newzip->close();
-			}else{
-				panic();
-			}
-			header('Content-length: '.filesize($realzip));
-			header('Proagma: no-cache');
-			header('Expires: 0');
-			readfile($realzip);
-			unlink($realzip);
-		}
-	}else{
-		panic();
 	}
+	
+	$templates[] = $t;
 }elseif(request_var('author',false)){
 	$aid = request_var('author','invalid');
 	$html = '<b>Error: author not found</b>';

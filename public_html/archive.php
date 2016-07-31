@@ -11,7 +11,7 @@ if(isset($request)){
 	$request->enable_super_globals();
 }
 
-define('FILE_EXTRA_FRAGMENT',"t1.`filename`,t1.`category`,t1.`forum_url`,t1.`repo_url`,t1.`version`,t1.`complexity`,UNIX_TIMESTAMP(t1.`ts_updated`) AS `ts_updated`,UNIX_TIMESTAMP(t1.`ts_added`) AS `ts_added`,t1.`hits`,t1.`build_use`");
+define('FILE_EXTRA_FRAGMENT',"t1.`filename`,t1.`category`,t1.`forum_url`,t1.`repo_url`,t1.`version`,t1.`complexity`,UNIX_TIMESTAMP(t1.`ts_updated`) AS `ts_updated`,UNIX_TIMESTAMP(t1.`ts_added`) AS `ts_added`,t1.`hits`,t1.`build_use`,t1.`file_type`");
 define('FILE_SELECT',"t1.`id`,t1.`author`,t1.`description`,t1.`images`,t1.`name`,t1.`downloads`,t1.`upvotes`,t1.`downvotes`,t2.`username`,t1.`public` FROM `archive_files` AS t1 INNER JOIN ".USERS_TABLE." AS t2 ON t1.`author` = t2.`user_id`");
 define('FILE_EXTRA_SELECT',FILE_EXTRA_FRAGMENT." FROM `archive_files` AS t1");
 define('AUTHOR_SELECT',"t1.`username`,t1.`user_id`,COUNT(t2.`id`) AS `files` FROM ".USERS_TABLE." AS t1 INNER JOIN `archive_files` AS t2 ON t1.`user_id`=t2.`author`");
@@ -281,9 +281,9 @@ class File{
 	private $ts_added = 0;
 	private $hits = 0;
 	private $build_use = true;
+	private $file_type = array('type' => 0);
 	
 	private $edit = false;
-	private $file_type = array('type' => 0);
 	private $autobuild = true;
 	private $build_path = '';
 	private $build_command = '';
@@ -291,9 +291,6 @@ class File{
 	private $build_filename = '';
 	private $build_movepath = '';
 	private function populate_edit($obj){
-		$this->file_type = array(
-			'type' => (int)$obj['file_type']
-		);
 		if($this->file_type['type'] == 1){ // github!
 			$this->file_type['git_url'] = $obj['git_url'];
 			$this->file_type['github_repo'] = $obj['github_repo'];
@@ -321,6 +318,7 @@ class File{
 		$this->ts_added = (int)$obj['ts_added'];
 		$this->hits = (int)$obj['hits'];
 		$this->build_use = $obj['build_use']?true:false;
+		$this->file_type['type'] = (int)$obj['file_type'];
 		
 		$this->extra = true;
 	}
@@ -355,7 +353,7 @@ class File{
 			return;
 		}
 		global $db;
-		$result = $db->sql_query(query_escape("SELECT t1.`file_type`,t1.`git_url`,t1.`github_repo`,t1.`autobuild`,t1.`build_path`,t1.`build_command`,t1.`build_makefile`,t1.`build_filename`,t1.`build_movepath` FROM `archive_files` AS t1 WHERE t1.`id`=%d",$this->id));
+		$result = $db->sql_query(query_escape("SELECT t1.`git_url`,t1.`github_repo`,t1.`autobuild`,t1.`build_path`,t1.`build_command`,t1.`build_makefile`,t1.`build_filename`,t1.`build_movepath` FROM `archive_files` AS t1 WHERE t1.`id`=%d",$this->id));
 		if($obj = $db->sql_fetchrow($result)){
 			$this->populate_edit($obj);
 		}
@@ -426,7 +424,8 @@ class File{
 			'repo_url' => $this->repo_url,
 			'images' => $this->images,
 			'categories' => $this->categories,
-			'build_use' => $this->build_use
+			'build_use' => $this->build_use,
+			'zip' => $this->file_type['type'] == 0?Upload::getZipName($this->id):''
 		));
 	}
 	public function json_edit(){
