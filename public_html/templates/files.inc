@@ -8,7 +8,7 @@
 {#endif}
 
 <div id="fileSorter">
-	<label for="fileSorter_button"><a href="#">Sort files</a></label>
+	<label for="fileSorter_button">Sort files</label>
 	<input id="fileSorter_button" type="checkbox">
 	<div id="fileSorter_content">
 		<div class="buttongroup">
