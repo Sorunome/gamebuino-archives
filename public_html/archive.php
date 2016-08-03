@@ -676,6 +676,8 @@ class File{
 		$socket = socket_create(AF_UNIX,SOCK_STREAM,0);
 		if(!@socket_connect($socket,$frontend_socket_file)){
 			$db->sql_query(query_escape("INSERT INTO `archive_queue` (`file`,`type`,`status`,`output`,`cmd_after`) VALUES (%d,1,1,'',%d)",$this->id,$data['cmd_after']));
+			$this->build_command = 'DETECTING';
+			$db->sql_query(query_escape("UPDATE `archive_files` SET `build_command` = 'DETECTING' WHERE `id`=%d",$this->id));
 			return;
 		}
 		

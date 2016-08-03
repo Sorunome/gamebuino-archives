@@ -1,6 +1,6 @@
 <div class="hidden" id="edit_build_settings">
 	<h2>Build Settings</h2>
-	<label>Use build system: <input type="checkbox" name="build_use" value="1"{#if {{build_use}}}checked="checked"{#endif}</label>
+	<label>Use build system: <input type="checkbox" name="build_use" value="1"{#if {{build_use}}}checked="checked"{#endif}></label>
 			{!getHelpHTML('Use the build system, which allows you to automatically generate executables of your program from source!')}
 	<div id="edit_build_settings_all_fields">
 	

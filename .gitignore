@@ -1,8 +1,3 @@
-__pycache__
-/buildserver/backend/sandbox
-/buildserver/backend/builds
-/buildserver/backend/input
-/buildserver/backend/output
 /public_html/tmp
 /public_html/uploads
 /public_html/cache

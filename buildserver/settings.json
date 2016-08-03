@@ -1,5 +1,6 @@
 {
-	"backend":"/home/sorunome/repos/gamebuino-archives/buildserver/backend",
+	"max_sandboxes":4,
+	"timeout":900,
 	"public_html":"/home/sorunome/public_html/archives",
 	"sql":{
 		"server":"localhost",
