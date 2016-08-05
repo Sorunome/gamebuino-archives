@@ -1,4 +1,4 @@
-import os,sys,traceback,server,sandbox,json,time,hashlib,lxc,shutil
+import os,sys,traceback,server,sandbox,json,time,hashlib,lxc,shutil,argparse,datetime
 from sql import Sql
 
 if os.geteuid() == 0:
@@ -6,7 +6,6 @@ if os.geteuid() == 0:
 	sys.exit(1)
 PATH = os.path.dirname(os.path.abspath(__file__))+'/'
 
-QUEUE = []
 
 with open(PATH+'settings.json') as f:
 	config = json.load(f)
@@ -28,8 +27,19 @@ def makeUnicode(s):
 	except:
 		return s
 
+def writeLog(s,level):
+	if ['ERROR','INFO','DEBUG'].index(level) > args.loglevel:
+		return
+	s = datetime.datetime.now().strftime('[%a, %d %b %Y %H:%M:%S.%f]')+' ['+level+'] '+str(s)
+	if args.verbose or level == 'ERROR':
+		print(s)
+	args.logfile.write(s+'\n')
+	args.logfile.flush()
 
 class Box(sandbox.Box):
+	def log(self,s,level = 'DEBUG'):
+		s = str(s)
+		writeLog('[box '+str(self.i)+'] '+s,level)
 	def done_examin(self,data):
 		qdata = sql.query("SELECT t1.`file`,t1.`type`,t1.`status`,t1.`cmd_after` FROM `archive_queue` AS t1 INNER JOIN `archive_files` AS t2 ON t1.`file`=t2.`id` WHERE t1.`id`=%s",[int(self.key)])
 		if qdata:
@@ -100,8 +110,6 @@ class Box(sandbox.Box):
 						if f[-4:].lower() == '.hex':
 							self.success = True
 							break
-					print('buildbox')
-					print(self.success)
 				self.done_build(sandbox_path)
 			elif self.boxtype == self.TYPE_EXAMIN:
 				try:
@@ -111,11 +119,9 @@ class Box(sandbox.Box):
 				except:
 					json_data = {}
 					self.success = False
-				print(self.success)
-				print(json_data)
 				self.done_examin(json_data)
 		except:
-			traceback.print_exc()
+			self.log(traceback.format_exc(),'ERROR')
 		return True # we want to trash the sandbox!
 
 class ServerLink(server.ServerHandler):
@@ -140,7 +146,7 @@ class ServerLink(server.ServerHandler):
 		return True
 
 def parseClientInput(data,key = '',socket = False):
-	print('>> ',data)
+	writeLog('[client] >> '+str(data),'INFO')
 	success = False
 	if data['type'] == 'build':
 		fdata = sql.query("SELECT `id`,`file_type`,`git_url`,`build_path`,`build_command`,`build_makefile`,`build_filename`,`build_movepath` FROM `archive_files` WHERE `id`=%s",[int(data['fid'])])
@@ -153,7 +159,6 @@ def parseClientInput(data,key = '',socket = False):
 				key = str(sql.insertId())
 			
 			if fdata['file_type'] <= 1:
-				print(key)
 				fdata['build_command'] = fdata['build_command'].replace('%name%',fdata['build_filename'])
 				obj = {
 					'type':'build',
@@ -169,7 +174,6 @@ def parseClientInput(data,key = '',socket = False):
 					obj['build']['movepath'] = fdata['build_movepath']
 				if fdata['build_command'] != '':
 					if fdata['file_type'] == 0:
-						print('zip file')
 						zipfile = config['public_html']+'/uploads/zip/'+str(fdata['id'])+'.zip'
 						if os.path.isfile(zipfile):
 							obj['build']['type'] = 'zip'
@@ -178,7 +182,6 @@ def parseClientInput(data,key = '',socket = False):
 							QUEUE.append(obj)
 							success = True
 					elif fdata['file_type'] == 1:
-						print('git stuff')
 						obj['build']['type'] = 'git'
 						obj['build']['git'] = fdata['git_url']
 						
@@ -202,10 +205,8 @@ def parseClientInput(data,key = '',socket = False):
 			else:
 				sql.query("INSERT INTO `archive_queue` (`file`,`type`,`status`,`output`) VALUES (%s,1,2,'')",[fdata['id']])
 				key = str(sql.insertId())
-			print(key)
 			if fdata['file_type'] <= 1:
 				if fdata['file_type'] == 0:
-					print('zip file')
 					zipfile = config['public_html']+'/uploads/zip/'+str(fdata['id'])+'.zip'
 					if os.path.isfile(zipfile):
 						QUEUE.append({
@@ -218,7 +219,6 @@ def parseClientInput(data,key = '',socket = False):
 						})
 						success = True;
 				elif fdata['file_type'] == 1:
-					print('git stuff')
 					if fdata['git_url'] != '':
 						QUEUE.append({
 							'type':'examin',
@@ -242,60 +242,46 @@ def parseClientInput(data,key = '',socket = False):
 	elif key:
 		sql.query("DELETE FROM `archive_queue` WHERE `id`=%s",[int(key)])
 
-
-if __name__ == '__main__':
-	if not os.path.isdir(PATH+'output'):
-		if os.path.exists(PATH+'output'):
-			print('ERROR: '+PATH+'output exists in the filesystem')
-			sys.exit(1)
-		os.makedirs(PATH+'output')
-	
-	# if we were in the middle of creating the template we kill it just to be sure
-	try:
-		if os.path.exists(PATH+'mktemplate.lock'):
-			Box.rmTemplate(Box)
-			os.remove(PATH+'mktemplate.lock')
-	except:
-		traceback.print_exc()
-		pass
-	
-	boxes = []
-	for i in range(config['max_sandboxes']):
-		b = Box()
-		b.destroy_box()
-		boxes.append(b)
-	
-	noboxes = False
-	def getIdleBox():
-		if noboxes:
+class QueueHandler:
+	def __init__(self):
+		# if we were in the middle of creating the template we kill it just to be sure
+		try:
+			if os.path.exists(PATH+'mktemplate.lock'):
+				Box.rmTemplate(Box)
+				os.remove(PATH+'mktemplate.lock')
+		except:
+			traceback.print_exc()
+			pass
+		self.QUEUE = []
+		self.boxes = []
+		for i in range(config['max_sandboxes']):
+			b = Box()
+			b.destroy_box()
+			self.boxes.append(b)
+		self.noboxes = False
+		self.stopnow = False
+	def log(self,s,level = 'DEBUG'):
+		writeLog('[queue] '+str(s),level)
+	def getIdleBox(self):
+		if self.noboxes:
 			return None
-		for b in boxes:
+		for b in self.boxes:
 			if b.state == b.STATE_READY:
 				return b
 		return None
-	
-	print('Listening to socket file...')
-	srv = server.Server(PATH+'/socket.sock',0,ServerLink)
-	srv.start()
-	res = sql.query("SELECT `id`,`file`,`type` FROM `archive_queue` WHERE `status`=1") # get the queued things from when we were offline
-	for r in res:
-		print('Old Command: ',r)
-		parseClientInput({
-			'type':['build','examin'][r['type']],
-			'fid':r['file']
-		},str(r['id']))
-	
-	try:
-		while True:
+	def append(self,a):
+		self.QUEUE.append(a)
+	def run(self):
+		while not self.stopnow:
 			time.sleep(5)
 			try:
-				if len(QUEUE) > 0: # we don't do a for-loop to make multi-threading more possible
-					data = QUEUE.pop(0) # ofc we start with the oldest elements
-					print('Queue: ',data)
+				if len(self.QUEUE) > 0: # we don't do a for-loop to make multi-threading more possible
+					data = self.QUEUE.pop(0) # ofc we start with the oldest elements
+					self.log(data)
 					if data['type'] == 'build':
-						b = getIdleBox()
+						b = self.getIdleBox()
 						if not b:
-							QUEUE.append(data) # we couldn't find a jail, let's try again later!
+							self.append(data) # we couldn't find a jail, let's try again later!
 							continue
 						b.setBoxType(b.TYPE_BUILD)
 						b.set_key(data['build']['key'])
@@ -314,9 +300,9 @@ if __name__ == '__main__':
 							b.build_includefiles(data['build']['include'])
 						b.thread.start()
 					elif data['type'] == 'examin':
-						b = getIdleBox()
+						b = self.getIdleBox()
 						if not b:
-							QUEUE.append(data)
+							self.append(data)
 							continue
 						b.setBoxType(b.TYPE_EXAMIN)
 						b.set_key(data['examin']['key'])
@@ -328,43 +314,68 @@ if __name__ == '__main__':
 						b.build_examin()
 						b.thread.start()
 					elif data['type'] == 'destroy_template':
-						noboxes = True
+						self.noboxes = True
 						
 						boxes_busy = False
-						for b in boxes:
+						for b in self.boxes:
 							if b.state != b.STATE_READY:
 								boxes_busy = True
 								break
 						if boxes_busy:
-							QUEUE.append(data)
+							self.append(data)
 							continue
 						Box.rmTemplate(Box)
-						for b in boxes:
+						for b in self.boxes:
 							b.destroy_box()
 						
-						noboxes = False
+						self.noboxes = False
 			except KeyboardInterrupt:
 				raise KeyboardInterrupt
 			except:
-				traceback.print_exc()
-	except KeyboardInterrupt:
-		print('KeyboardInterrupt')
-		srv.stop()
-		print('joining with boxes...')
-		for b in boxes:
+				self.log(traceback.format_exc(),'ERROR')
+	def stop(self):
+		self.stopnow = True
+		self.log('Joining with boxes...')
+		for b in self.boxes:
 			try:
 				b.thread.join()
 			except:
 				pass
+
+
+if __name__ == '__main__':
+	parser = argparse.ArgumentParser('python buildserver',description='Buildserver for the Gamebuino archives')
 	
-	sys.exit()
-	box = Box()
-	box.set_key('testbox')
-	box.build_box()
-	print('Done building the box!')
-	box.build_git('https://github.com/Sorunome/blockdude-gamebuino')
-	box.build_path('blockdude')
-	box.build_makefile('gamebuino.mk')
-	box.build_command('make INO_FILE=blockdude.ino NAME=BLOKDUDE')
-	box.run()
+	parser.add_argument('-v','--verbose',help='output logs to terminal',action='store_true',default=False)
+	parser.add_argument('-l','--loglevel',help='set the log level (default: ERROR)',default='ERROR',choices=['DEBUG','INFO','ERROR'])
+	parser.add_argument('-o','--logfile',help='specify a file where to log to',default=PATH+'buildserver.log',type=argparse.FileType('w+'),metavar='FILE')
+	args = parser.parse_args()
+	args.loglevel = ['ERROR','INFO','DEBUG'].index(args.loglevel)
+	
+	if not os.path.isdir(PATH+'output'):
+		if os.path.exists(PATH+'output'):
+			print('ERROR: '+PATH+'output exists in the filesystem')
+			sys.exit(1)
+		os.makedirs(PATH+'output')
+	
+	
+	QUEUE = QueueHandler()
+	writeLog('[startup] Listening to socket file...','INFO')
+	
+	srv = server.Server(PATH+'/socket.sock',0,ServerLink)
+	srv.start()
+	res = sql.query("SELECT `id`,`file`,`type` FROM `archive_queue` WHERE `status`=1") # get the queued things from when we were offline
+	for r in res:
+		writeLog('[startup] Old Command: '+str(r),'DEBUG')
+		parseClientInput({
+			'type':['build','examin'][r['type']],
+			'fid':r['file']
+		},str(r['id']))
+	
+	try:
+		QUEUE.run()
+	except KeyboardInterrupt:
+		writeLog('KeyboardInterrupt','DEBUG')
+		srv.stop()
+		QUEUE.stop()
 	

@@ -5,3 +5,4 @@ notes.txt
 prep.sh
 *.pyc
 socket.sock
+buildserver.log

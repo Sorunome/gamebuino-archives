@@ -130,6 +130,7 @@ class Box:
 			self.commands = []
 			
 			self.thread = threading.Thread(target=self.run)
+			self.log('Done building box')
 			return True
 		except Exception as inst:
 			self.log(inst,'ERROR')
