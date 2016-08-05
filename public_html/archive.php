@@ -98,7 +98,7 @@ function getHelpHTML($s){
 }
 
 function getBuildOutputMessage($id){
-	global $db,$backend_path;
+	global $db;
 	if(!is_numeric($id)){
 		return '';
 	}
@@ -113,7 +113,7 @@ function getBuildOutputMessage($id){
 		return '';
 	}
 	if(in_array($qdata['status'],array(1,2))){
-		return file_get_contents($backend_path.'/output/'.$id);
+		return ''; // TODO: contact backend
 	}
 	return $qdata['output'];
 }
@@ -621,7 +621,7 @@ class File{
 		return array($fileArray,$html);
 	}
 	public function build(){
-		global $frontend_socket_file,$db;
+		global $buildserver_path,$db;
 		if(!$this->canEdit()){
 			return -1;
 		}
@@ -637,7 +637,7 @@ class File{
 		$db->sql_freeresult($res);
 		
 		$socket = socket_create(AF_UNIX,SOCK_STREAM,0);
-		if(!@socket_connect($socket,$frontend_socket_file)){
+		if(!@socket_connect($socket,$buildserver_path.'/socket.sock')){
 			$db->sql_query(query_escape("INSERT INTO `archive_queue` (`file`,`type`,`status`,`output`) VALUES (%d,0,1,'')",$this->id));
 			return $db->sql_nextid();
 		}
@@ -661,7 +661,7 @@ class File{
 		return -1;
 	}
 	private function examin(){
-		global $frontend_socket_file,$db;
+		global $buildserver_path,$db;
 		if($this->build_command == 'DETECTING'){ // no need to run this
 			return;
 		}
@@ -674,7 +674,7 @@ class File{
 			$data['cmd_after'] = 0;
 		}
 		$socket = socket_create(AF_UNIX,SOCK_STREAM,0);
-		if(!@socket_connect($socket,$frontend_socket_file)){
+		if(!@socket_connect($socket,$buildserver_path.'/socket.sock')){
 			$db->sql_query(query_escape("INSERT INTO `archive_queue` (`file`,`type`,`status`,`output`,`cmd_after`) VALUES (%d,1,1,'',%d)",$this->id,$data['cmd_after']));
 			$this->build_command = 'DETECTING';
 			$db->sql_query(query_escape("UPDATE `archive_files` SET `build_command` = 'DETECTING' WHERE `id`=%d",$this->id));

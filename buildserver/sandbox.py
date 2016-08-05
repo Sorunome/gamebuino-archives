@@ -27,6 +27,8 @@ class Box:
 	TYPE_BUILD = 0
 	TYPE_EXAMIN = 1
 	
+	i = -1
+	
 	def __init__(self):
 		global box_num
 		self.i = box_num
@@ -38,20 +40,25 @@ class Box:
 		self.key = ''
 		self.thread = None
 		self.success = False
-		
-	@classmethod
+	
+	def log(self,s,level='DEBUG'):
+		s = str(s)
+		print(level+': (box '+str(self.i)+') '+s)
+	
 	def rmTemplate(self):
 		c = lxc.Container('gamebuino-buildserver-template')
 		if c.defined:
 			if c.state == 'RUNNING' and not c.shutdown(timeout=30):
 				c.stop()
 			c.destroy()
-	@classmethod
+	
 	def makeTemplate(self):
 		try:
-			print('Sandbox template absent, building...')
+			self.log('Sandbox template absent, building...')
+			
 			if os.path.isfile(PATH+'/mktemplate.lock'):
-				print('another thread is building right now...')
+				self.log('another thread is building right now...')
+				
 				while os.path.isfile(PATH+'/mktemplate.lock'):
 					time.sleep(1)
 				c = lxc.Container('gamebuino-buildserver-template')
@@ -85,8 +92,7 @@ class Box:
 			os.remove(PATH+'/mktemplate.lock')
 			return True
 		except:
-			#self.rmTemplate()
-			traceback.print_exc()
+			self.log(traceback.format_exc(),'ERROR')
 			os.remove(PATH+'/mktemplate.lock')
 			if c.defined:
 				if c.running and not c.shutdown(timeout=30):
@@ -96,7 +102,7 @@ class Box:
 	def setBoxType(self,boxtype):
 		self.boxtype = boxtype
 	def build_box(self):
-		print('Building sandbox '+str(self.i)+' ...')
+		self.log('Building sandbox')
 		try:
 			self.success = False
 			if self.state == self.STATE_READY:
@@ -106,7 +112,7 @@ class Box:
 			self.state = self.STATE_BUILDING
 			ct = lxc.Container('gamebuino-buildserver-template')
 			
-			if os.path.isfile(PATH+'/sandbox/mktemplate.lock') or not ct.defined:
+			if os.path.isfile(PATH+'/mktemplate.lock') or not ct.defined:
 				assert(self.makeTemplate())
 			
 			if ct.running and not ct.shutdown(timeout=30):
@@ -126,13 +132,14 @@ class Box:
 			self.thread = threading.Thread(target=self.run)
 			return True
 		except Exception as inst:
-			print(inst)
-			traceback.print_exc()
+			self.log(inst,'ERROR')
+			self.log(traceback.format_exc(),'ERROR')
+			
 			time.sleep(10) # we don't want a busy wait!
 			self.destroy_box()
 			return False
 	def destroy_box(self,triggerBuild = True):
-		print('Destroying box '+str(self.i))
+		self.log('Destroying box')
 		c = lxc.Container('gamebuino-buildserver-'+str(self.i))
 		if c.defined:
 			if c.state == 'RUNNING' and not c.shutdown(timeout=30):
@@ -142,7 +149,7 @@ class Box:
 		self.state = self.STATE_UNREADY
 		self.boxtype = self.TYPE_NOBOX
 		if triggerBuild:
-			print('Building box '+str(self.i)+' in new thread')
+			self.log('Building box in new thread')
 			threading.Thread(target=self.build_box).start()
 	def set_key(self,key):
 		self.key = key
@@ -225,7 +232,7 @@ class Box:
 			}
 		]
 	def examin(self):
-		print('examining this thing....')
+		self.log('examining this thing...')
 		inofile = ''
 		inodirectory = ''
 		name = ''
@@ -237,7 +244,8 @@ class Box:
 			dirs[:] = [d for d in dirs if d not in ['Arduino','.arduino15','bin']]
 			for f in files:
 				if f[-4:] == '.ino':
-					print('Found INO file',f)
+					self.log('found INO file '+f)
+					
 					fname = f[:-4]
 					if root[-len(fname):] == fname:
 						inofile = f
@@ -251,11 +259,12 @@ class Box:
 				dirs[:] = [d for d in dirs if d not in ['Arduino','.arduino15','bin']]
 				for f in files:
 					if f[-4:] == '.ino':
-						print('Found INO file',f)
+						self.log('found INO file '+f)
+						
 						with open(root+'/'+f) as o:
 							c = o.read()
 							if re.search(r"void\s+setup\([^)]*\)\s*{",c) and re.search(r"void\s+loop\([^)]*\)\s*{",c):
-								print('Found you sucker!')
+								self.log('Found you sucker!')
 								movepath = f[:-4]
 								inofile = f
 								inodirectory = root
@@ -301,7 +310,7 @@ class Box:
 		]
 	def demote(self):
 		try:
-			print('Running lxc container ('+str(self.i)+')...')
+			self.log('Running lxc container','INFO')
 			
 			if self.state != self.STATE_RUNNING:
 				return
@@ -322,8 +331,10 @@ class Box:
 				cmd_before.append('iptables -A INPUT -i eth0 -p tcp --sport '+str(p)+' -m state --state ESTABLISHED -j ACCEPT')
 				cmd_before.append('iptables -A OUTPUT -o eth0 -p tcp --dport '+str(p)+' -m state --state NEW,ESTABLISHED -j ACCEPT')
 			for c in cmd_before:
-				print('(box '+str(self.i)+') Running setup command '+c)
-				subprocess.call(c,shell=True)
+				self.log('Running setup command '+c)
+				resp = subprocess.call(c,shell=True)
+				if resp != 0:
+					self.log('ERROR running command '+c+' ('+str(resp)+')','ERROR')
 			
 			os.chdir('/build')
 			
@@ -333,7 +344,8 @@ class Box:
 			
 			with open('/build/.output','w+') as o:
 				for c in self.commands:
-					print('(box '+str(self.i)+') Executing command '+str(c))
+					self.log('Executing command '+str(c))
+					
 					o.write('Executing command '+str(c)+':\n')
 					o.flush()
 					if c['type'] == 'cmd':
@@ -352,7 +364,7 @@ class Box:
 					o.flush()
 			
 		except:
-			traceback.print_exc()
+			self.log(traceback.format_exc(),'ERROR')
 			with open('/build/.resp_code','w+') as e:
 				e.write('1')
 	def doneQueue(self):
@@ -385,7 +397,7 @@ class Box:
 				with open(c.get_config_item('lxc.rootfs')+'/build/.resp_code','r') as f:
 					self.success = f.read() == '0'
 			except:
-				traceback.print_exc()
+				self.log(traceback.format_exc(),'ERROR')
 				self.success = False
 		except:
 			self.success = False
@@ -394,6 +406,6 @@ class Box:
 		
 		if self.doneQueue():
 			self.destroy_box()
-			print('Done with box_'+str(self.i))
+			self.log('Done with box')
 
 setCgroup()

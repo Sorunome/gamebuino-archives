@@ -7,9 +7,9 @@ if(!$isAdmin){
 	exit;
 }
 function wipeBoxTemplate(){
-	global $frontend_socket_file;
+	global $buildserver_path;
 	$socket = socket_create(AF_UNIX,SOCK_STREAM,0);
-	if(!@socket_connect($socket,$frontend_socket_file)){
+	if(!@socket_connect($socket,$buildserver_path.'/socket.sock')){
 		return false;
 	}
 	

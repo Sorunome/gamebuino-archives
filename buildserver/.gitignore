@@ -1,0 +1,7 @@
+mktemplate.lock
+__pycache__
+output
+notes.txt
+prep.sh
+*.pyc
+socket.sock

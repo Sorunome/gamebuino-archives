@@ -172,8 +172,8 @@ def parseClientInput(data,key = '',socket = False):
 						print('zip file')
 						zipfile = config['public_html']+'/uploads/zip/'+str(fdata['id'])+'.zip'
 						if os.path.isfile(zipfile):
-							shutil.copyfile(zipfile,config['backend']+'/input/'+key+'.zip')
 							obj['build']['type'] = 'zip'
+							obj['build']['zip'] = zipfile
 							
 							QUEUE.append(obj)
 							success = True
@@ -208,11 +208,11 @@ def parseClientInput(data,key = '',socket = False):
 					print('zip file')
 					zipfile = config['public_html']+'/uploads/zip/'+str(fdata['id'])+'.zip'
 					if os.path.isfile(zipfile):
-						shutil.copyfile(zipfile,config['backend']+'/input/'+key+'.zip')
 						QUEUE.append({
 							'type':'examin',
 							'examin':{
 								'type':'zip',
+								'zip':zipfile,
 								'key':key
 							}
 						})
@@ -253,7 +253,7 @@ if __name__ == '__main__':
 	# if we were in the middle of creating the template we kill it just to be sure
 	try:
 		if os.path.exists(PATH+'mktemplate.lock'):
-			Box.rmTemplate()
+			Box.rmTemplate(Box)
 			os.remove(PATH+'mktemplate.lock')
 	except:
 		traceback.print_exc()
@@ -303,7 +303,6 @@ if __name__ == '__main__':
 							b.build_zip(data['build']['zip'])
 						elif data['build']['type'] == 'git':
 							b.build_git(data['build']['git'])
-						
 						if 'path' in data['build']:
 							b.build_path(data['build']['path'])
 						if 'movepath' in data['build']:
@@ -322,7 +321,7 @@ if __name__ == '__main__':
 						b.setBoxType(b.TYPE_EXAMIN)
 						b.set_key(data['examin']['key'])
 						if data['examin']['type'] == 'zip':
-							b.build_zip()
+							b.build_zip(data['examin']['zip'])
 						elif data['examin']['type'] == 'git':
 							b.build_git(data['examin']['git'])
 						
@@ -339,7 +338,7 @@ if __name__ == '__main__':
 						if boxes_busy:
 							QUEUE.append(data)
 							continue
-						Box.rmTemplate()
+						Box.rmTemplate(Box)
 						for b in boxes:
 							b.destroy_box()
 						
