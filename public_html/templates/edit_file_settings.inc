@@ -4,7 +4,15 @@
 			{!getHelpHTML('A link to the forum topic where discussion about this program/game occured')}<br>
 	<input type="hidden" name="category" value="{'['.implode('][',{{categories}}).']'}">
 	Tags:{!getHelpHTML('The tags your game should have, you can add multiple')}
-	<span id="categoriesContent">Please enable Javascript!</span><br>
+	<div id="categoriesContent">Please enable Javascript!</div><br>
+	Extra authors:{!getHelpHTML('Did you develop your game with other people? Here you can add them as an author!')}
+	<input type="hidden" name="extra_authors" value="">
+	<div id="extraAuthorsContent">
+		{#foreach {{extra_authors}} as $id => $name}
+			<div data-id="{$id}">{$name} <a href="#">x</a></div>
+		{#endforeach}
+		<input type="text"><a href="#">Add author</a>
+	</div><br>
 	Description:{!getHelpHTML('A long description of your game')}<br>
 	<textarea name="description">{description}</textarea>
 	<br><br>
@@ -57,6 +65,37 @@
 			this.category.value = catIds.join("");
 			
 			// no e.preventDefault() as we still want to send it
+		});
+	});
+	// extra authors picker
+	$(function(){
+		var reloadAuthorIds = function(){
+				var authorIds = $('#extraAuthorsContent > div').map(function(){
+					$(this).children('a').off('click').click(function(e){
+						e.preventDefault();
+						$(this).parent().remove();
+						reloadAuthorIds();
+					});
+					return this.dataset.id;
+				}).get().join(',');
+				$('input[name="extra_authors"]').val(authorIds);
+			};
+		reloadAuthorIds();
+		$('#extraAuthorsContent > a').click(function(e){
+			e.preventDefault();
+			var name = $('#extraAuthorsContent > input').val();
+			$.getJSON('./?edit_authorcheck='+encodeURIComponent(name),function(data){
+				if(data.id != -1){
+					$('#extraAuthorsContent').prepend(
+						$('<div>').attr('data-id',data.id).text(data.username).append(' ',
+							$('<a>').attr('href','#').text('x')
+						)
+					);
+					$('#extraAuthorsContent > input').val('');
+				}else{
+					alert('Username not found!');
+				}
+			});
 		});
 	});
 </script>

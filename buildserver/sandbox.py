@@ -317,6 +317,7 @@ class Box:
 			}
 		]
 	def demote(self):
+		print('wtf')
 		try:
 			self.log('Running lxc container','INFO')
 			
@@ -378,6 +379,7 @@ class Box:
 	def doneQueue(self):
 		return True
 	def run(self):
+		self.log('Entering run-function (state: '+str(self.state)+')')
 		if self.state != self.STATE_READY:
 			self.doneQueue()
 			return
@@ -394,9 +396,10 @@ class Box:
 			os.symlink(c.get_config_item('lxc.rootfs')+'/build/.output',outfile)
 			
 			assert(c.defined)
+			self.log('Starting container...')
 			c.start()
 			assert(c.running)
-			
+			self.log('Container started')
 			
 			c.attach_wait(self.demote,env_policy=lxc.LXC_ATTACH_CLEAR_ENV)
 			
@@ -408,6 +411,7 @@ class Box:
 				self.log(traceback.format_exc(),'ERROR')
 				self.success = False
 		except:
+			self.log(traceback.format_exc(),'ERROR')
 			self.success = False
 		
 		self.state = self.STATE_DONE

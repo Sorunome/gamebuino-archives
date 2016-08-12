@@ -8,13 +8,16 @@
 {#if !{{public}}}
 	<strong>This file isn't public!</strong>
 {#endif}
-
 <table id="fileDescription" class="descriptionTable" cellspacing="0" cellpadding="0">
 	<tr><th colspan="2"><?=$this->name?> (&nbsp;<a href="download.php?id={id}" download>Download</a>&nbsp;)
 	{#if {{can_edit}}}
 		<a href="?edit={id}" id="editfile">Edit</a>
 	{#endif}</th></tr>
-	<tr><td>Author</td><td><a href="?author={authorId}">{author}</a></td></tr>
+	<tr><td>Author{#if sizeof({{extra_authors}})>0}s{#endif}</td><td><a href="?author={authorId}">{author}</a>
+		{#foreach {{extra_authors}} as $id => $name}
+			<a href="?author={$id}">{$name}</a>
+		{#endforeach}
+	</td></tr>
 	<tr><td>Hits</td><td>{hits}</td></tr>
 	<tr><td>Downloads</td><td>{downloads}</td></tr>
 	<tr><td>Rating</td><td>+<span id="upvotes">{upvotes}</span>/-<span id="downvotes">{downvotes}</span>&nbsp;&nbsp;&nbsp;

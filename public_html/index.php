@@ -77,6 +77,17 @@ if(request_var('file',false)){
 		$body_template->title = 'Error';
 	}
 	$templates[] = $t;
+}elseif(request_var('edit_authorcheck',false)){
+	$result = $db->sql_query(query_escape("SELECT `username`,`user_id` AS `id` FROM ".USERS_TABLE." WHERE `username_clean` LIKE '%s' LIMIT 1",strtolower(request_var('edit_authorcheck','INVALID')).'%'));
+	header('Content-Type: application/json');
+	if($u = $db->sql_fetchrow($result)){
+		echo json_encode($u);
+	}else{
+		echo json_encode(array(
+			'id' => -1,
+			'username' => ''
+		));
+	}
 }elseif(request_var('get_build',false)){
 	global $db;
 	$result = $db->sql_query(query_escape("SELECT `id`,`status`,UNIX_TIMESTAMP(`ts`) AS `ts`,`file` FROM `archive_queue` WHERE `type`=0 AND `id`=%d",(int)request_var('get_build','invalid')));

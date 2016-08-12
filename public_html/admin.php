@@ -44,6 +44,7 @@ if(isset($_GET['clearTemplateCache'])){
 			$res = $db->sql_query("SELECT ".FILE_EXTRA_FRAGMENT.",".FILE_SELECT);
 			$i = 0;
 			while($o = $db->sql_fetchrow($res)){
+				$o['no_extra_authors'] = true;
 				$f = new File($o,true);
 				$f->build();
 				$i++;

@@ -86,35 +86,45 @@ class Box(sandbox.Box):
 				return not self.success
 		return True
 	def done_build(self,sandbox_path):
-		qdata = sql.query("SELECT t1.`file`,t1.`type`,t1.`status`,t2.`public`,t1.`cmd_after` FROM `archive_queue` AS t1 INNER JOIN `archive_files` AS t2 ON t1.`file`=t2.`id` WHERE t1.`id`=%s",[int(self.key)])
+		qdata = sql.query("SELECT t1.`file`,t1.`type`,t1.`status`,t2.`public`,t1.`cmd_after`,t2.`name_83` FROM `archive_queue` AS t1 INNER JOIN `archive_files` AS t2 ON t1.`file`=t2.`id` WHERE t1.`id`=%s",[int(self.key)])
 		if qdata:
 			qdata = qdata[0]
 			if qdata['type'] == 0 and qdata['status'] == 2: # make sure we are building this thing
 				status = 0
 				if self.success:
-					status = 3
-					timestamp = str(int(time.time()))
 					
-					# copy the actual build files
-					out_path = config['public_html']+'/files/gb1/'+str(qdata['file'])
-					if not os.path.exists(out_path):
-						os.makedirs(out_path)
-					lastDir = '0'
-					for d in os.listdir(out_path):
-						if os.path.exists(out_path+'/'+d) and int(lastDir) < int(d):
-							lastDir = d
-					last_out = out_path+'/'+lastDir
-					out_path += '/'+timestamp
-					
-					if lastDir != '0' and hashFolder(last_out) == hashFolder(sandbox_path+'/build/bin'):
-						status = 4
-					else:
-						shutil.copytree(sandbox_path+'/build/bin',out_path)
-					if qdata['cmd_after'] != -1:
-						parseClientInput({
-							'type':QUEUE_CMD_TYPES[qdata['cmd_after']],
-							'fid':qdata['file']
-						})
+					self.success = False
+					for root, dirs, files in os.walk(sandbox_path+'/build/bin'):
+						for f in files:
+							if f == qdata['name_83']+'.HEX' and root == sandbox_path+'/build/bin':
+								self.success = True
+								break
+						if self.success:
+							break
+					if self.success:
+						status = 3
+						
+						timestamp = str(int(time.time()))
+						# copy the actual build files
+						out_path = config['public_html']+'/files/gb1/'+str(qdata['file'])
+						if not os.path.exists(out_path):
+							os.makedirs(out_path)
+						lastDir = '0'
+						for d in os.listdir(out_path):
+							if os.path.exists(out_path+'/'+d) and int(lastDir) < int(d):
+								lastDir = d
+						last_out = out_path+'/'+lastDir
+						out_path += '/'+timestamp
+						
+						if lastDir != '0' and hashFolder(last_out) == hashFolder(sandbox_path+'/build/bin'):
+							status = 4
+						else:
+							shutil.copytree(sandbox_path+'/build/bin',out_path)
+						if qdata['cmd_after'] != -1:
+							parseClientInput({
+								'type':QUEUE_CMD_TYPES[qdata['cmd_after']],
+								'fid':qdata['file']
+							})
 				output = ''
 				try:
 					with open(sandbox_path+'/build/.output','r') as f:

@@ -11,7 +11,7 @@ if(isset($request)){
 	$request->enable_super_globals();
 }
 
-define('FILE_EXTRA_FRAGMENT',"t1.`filename`,t1.`category`,t1.`forum_url`,t1.`repo_url`,UNIX_TIMESTAMP(t1.`ts_updated`) AS `ts_updated`,UNIX_TIMESTAMP(t1.`ts_added`) AS `ts_added`,t1.`hits`,t1.`file_type`");
+define('FILE_EXTRA_FRAGMENT',"t1.`filename`,t1.`category`,t1.`forum_url`,t1.`repo_url`,UNIX_TIMESTAMP(t1.`ts_updated`) AS `ts_updated`,UNIX_TIMESTAMP(t1.`ts_added`) AS `ts_added`,t1.`hits`,t1.`file_type`,t1.`extra_authors`");
 define('FILE_SELECT',"t1.`id`,t1.`author`,t1.`description`,t1.`images`,t1.`name`,t1.`downloads`,t1.`upvotes`,t1.`downvotes`,t2.`username`,t1.`public` FROM `archive_files` AS t1 INNER JOIN ".USERS_TABLE." AS t2 ON t1.`author` = t2.`user_id`");
 define('FILE_EXTRA_SELECT',FILE_EXTRA_FRAGMENT." FROM `archive_files` AS t1");
 define('AUTHOR_SELECT',"t1.`username`,t1.`user_id`,COUNT(t2.`id`) AS `files` FROM ".USERS_TABLE." AS t1 INNER JOIN `archive_files` AS t2 ON t1.`user_id`=t2.`author`");
@@ -278,6 +278,7 @@ class File{
 	private $ts_updated = 0;
 	private $ts_added = 0;
 	private $hits = 0;
+	private $extra_authors = array();
 	private $file_type = array('type' => 0);
 	
 	private $edit = false;
@@ -292,6 +293,16 @@ class File{
 		$this->edit = true;
 	}
 	private function populate_extra($obj){
+		global $db;
+		if(!isset($obj['no_extra_authors']) || $obj['no_extra_authors']){
+			if(preg_match('/^\d+(,\d+)*$/',$obj['extra_authors'])){ // just to be make sure we only have an integer list
+				$res = $db->sql_query("SELECT `user_id`,`username` FROM ".USERS_TABLE." WHERE `user_id` IN (".$obj['extra_authors'].")");
+				while($o = $db->sql_fetchrow($res)){
+					$this->extra_authors[(int)$o['user_id']] = $o['username'];
+				}
+				$db->sql_freeresult($res);
+			}
+		}
 		$this->filename = $obj['filename'];
 		$this->categories = array();
 		foreach(explode('][',substr($obj['category'],1,strlen($obj['category'])-2)) as $c){
@@ -408,7 +419,8 @@ class File{
 			'repo_url' => $this->repo_url,
 			'images' => $this->images,
 			'categories' => $this->categories,
-			'zip' => $this->file_type['type'] == 0?Upload::getZipName($this->id):''
+			'zip' => $this->file_type['type'] == 0?Upload::getZipName($this->id):'',
+			'extra_authors' => $this->extra_authors
 		));
 	}
 	public function json_edit(){
@@ -600,9 +612,7 @@ class File{
 			return -1;
 		}
 		$this->goedit();
-		if(empty($this->build_command)){
-			return -1;
-		}
+		
 		$res = $db->sql_query(query_escape("SELECT `id` FROM `archive_queue` WHERE `file`=%d AND `type`=0 AND (`status`=1 OR `status`=2)",$this->id));
 		if($db->sql_fetchrow($res)){ // we are already building...
 			$db->sql_freeresult($res);
@@ -653,9 +663,24 @@ class File{
 			'delimage3' => 'false',
 			'file_type' => 0,
 			'github_repo' => '',
-			'name_83' => ''
+			'name_83' => '',
+			'extra_authors' => ''
 		),$_POST);
 		
+		if(preg_match('/^\d+(,\d+)*$/',$vars['extra_authors'])){
+			$a = array_unique(explode(',',$vars['extra_authors']));
+			if($k = array_search((string)$userid,$a) !== false){
+				unset($a[$k]);
+			}
+			$vars['extra_authors'] = implode(',',$a);
+			$result = $db->sql_query("SELECT COUNT(`user_id`) AS `num` FROM ".USERS_TABLE." WHERE `user_id` IN (".$vars['extra_authors'].")");
+			if(!($u = $db->sql_fetchrow($result)) || $u['num'] != sizeof($a)){
+				$vars['extra_authors'] = '';
+			}
+			$db->sql_freeresult($result);
+		}else{
+			$vars['extra_authors'] = '';
+		}
 		if($this->exists()){
 			$vars['name_83'] = $this->name_83;
 		}
@@ -694,7 +719,7 @@ class File{
 		$query = "UPDATE `archive_files` SET";
 		$params = array();
 		$updateVars = array('name','description','forum_url','repo_url','name_83');
-		foreach(array_merge($updateVars,array('category')) as $v){
+		foreach(array_merge($updateVars,array('category','extra_authors')) as $v){
 			if(isset($_POST[$v])){
 				$query .= "`$v`='%s',";
 				$params[] = $vars[$v];
@@ -723,12 +748,6 @@ class File{
 		}
 		$this->goextra();
 		
-		if(!$this->build_use && $this->type == 0){
-			if(!$this->filename){
-				return array('type' => 'invalid');
-			}
-			return array('type' => 'zip','filename' => $this->filename,'id' => $this->id);
-		}
 		$f = $this->filename;
 		if(!$f){
 			$f = $this->name.'.zip';
