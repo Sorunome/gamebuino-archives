@@ -24,8 +24,6 @@ class Box:
 	STATE_DONE = 4
 	
 	TYPE_NOBOX = -1
-	TYPE_BUILD = 0
-	TYPE_EXAMIN = 1
 	
 	i = -1
 	
@@ -182,14 +180,14 @@ class Box:
 				self.commands += [
 					{
 						'type':'cmd',
-						'cmd':['cp',f,'/build/bin/'+ntpath.basename(f)]
+						'cmd':['cp','-r',f,'/build/bin/'+ntpath.basename(f)]
 					}
 				]
 			else:
 				self.commands += [
 					{
 						'type':'cmd',
-						'cmd':['cp',f[0],'/build/bin/'+f[1]]
+						'cmd':['cp','-r',f[0],'/build/bin/'+f[1]]
 					}
 				]
 	def build_command(self,cmd):
@@ -225,81 +223,90 @@ class Box:
 			},
 			{
 				'type':'cmd',
-				'cmd':['git','clone','--depth','1',repo,'repo']
+				'cmd':['git','clone','--depth','1',repo,'/tmp/repo']
 			},
 			{
 				'type':'cmd',
-				'cmd':'mv repo/* .'
+				'cmd':'mv /tmp/repo/* /tmp/repo/.[!.]* /build'
 			}
 		]
 	def examin(self):
 		self.log('examining this thing...')
-		inofile = ''
-		inodirectory = ''
+		json_obj = {
+			'use_buildsystem':True,
+			'path':''
+		}
+		try:
+			with open('/build/settings.json','w+') as f:
+				json_obj.update(json.load(f))
+		except:
+			pass
 		name = ''
 		include = []
-		movepath = ''
 		
-		# we try to find the ino file by <name>/<name>.ino first
-		for root, dirs, files in os.walk('.'):
-			dirs[:] = [d for d in dirs if d not in ['Arduino','.arduino15','bin']]
-			for f in files:
-				if f[-4:] == '.ino':
-					self.log('found INO file '+f)
-					
-					fname = f[:-4]
-					if root[-len(fname):] == fname:
-						inofile = f
-						inodirectory = root
-			if inofile != '':
-				break
-		
-		# well, if we didn't find anything....let's start looking into the files themself!
-		if inofile == '':
-			for root, dirs, files in os.walk('.'):
-				dirs[:] = [d for d in dirs if d not in ['Arduino','.arduino15','bin']]
-				for f in files:
-					if f[-4:] == '.ino':
-						self.log('found INO file '+f)
-						
-						with open(root+'/'+f) as o:
-							c = o.read()
-							if re.search(r"void\s+setup\([^)]*\)\s*{",c) and re.search(r"void\s+loop\([^)]*\)\s*{",c):
-								self.log('Found you sucker!')
-								movepath = f[:-4]
+		if json_obj['use_buildsystem']:
+			if not 'command' in json_obj:
+				inofile = ''
+				inodirectory = ''
+				movepath = ''
+				# we try to find the ino file by <name>/<name>.ino first
+				for root, dirs, files in os.walk('.'):
+					dirs[:] = [d for d in dirs if d not in ['Arduino','.arduino15','bin']]
+					for f in files:
+						if f[-4:] == '.ino':
+							self.log('found INO file '+f)
+							
+							fname = f[:-4]
+							if root[-len(fname):] == fname:
 								inofile = f
 								inodirectory = root
-								break
-				if inofile != '':
-					break
+					if inofile != '':
+						break
+			
+				# well, if we didn't find anything....let's start looking into the files themself!
+				if inofile == '':
+					for root, dirs, files in os.walk('.'):
+						dirs[:] = [d for d in dirs if d not in ['Arduino','.arduino15','bin']]
+						for f in files:
+							if f[-4:] == '.ino':
+								self.log('found INO file '+f)
+								
+								with open(root+'/'+f) as o:
+									c = o.read()
+									if re.search(r"void\s+setup\([^)]*\)\s*{",c) and re.search(r"void\s+loop\([^)]*\)\s*{",c):
+										self.log('Found you sucker!')
+										movepath = f[:-4]
+										inofile = f
+										inodirectory = root
+										break
+						if inofile != '':
+							break
+				
+				json_obj.update({
+					'path':os.path.normpath(inodirectory),
+					'movepath':movepath,
+					'makefile':'gamebuino.mk',
+					'command':'make INO_FILE='+inofile+' NAME=%name%'
+				})
+			
+			#now search for additional INF files to include!
+			if not 'include' in json_obj:
+				include = []
+				for root, dirs, files in os.walk('.'):
+					dirs[:] = [d for d in dirs if d not in ['Arduino','.arduino15','bin']]
+					for f in files:
+						ext = f[-4:]
+						if ext == '.INF':
+							path = "../"*(len(os.path.split(json_obj['path']+'/'))-1)+root+'/'+f
+							
+							include.append(os.path.normpath(path))
+				json_obj['include'] = include
 		
-		#now search for the name and additional INF files to include!
-		if inofile != '':
-			for root, dirs, files in os.walk('.'):
-				dirs[:] = [d for d in dirs if d not in ['Arduino','.arduino15','bin']]
-				for f in files:
-					ext = f[-4:]
-					if ext == '.HEX' or ext == '.INF':
-						name = f[:-4][:8].upper()
-					if ext == '.INF':
-						path = "../"*(len(os.path.split(inodirectory+'/'))-1)+root+'/'+f
-						
-						include.append(os.path.normpath(path))
 		
-		if name == '':
-			name = inofile[:-4][:8].upper()
-		inodirectory = os.path.normpath(inodirectory)
-		
+		self.log(json_obj)
 		with open('/build/.resp_code','w+') as f:
-			f.write(str(int(inofile == '')))
+			f.write('0')
 		
-		json_obj = {
-			'ino_file':inofile,
-			'path':inodirectory,
-			'filename':name,
-			'include':include,
-			'movepath':movepath
-		}
 		with open('/build/.results.json','w+') as f:
 			f.write(json.dumps(json_obj))
 	def build_examin(self):
@@ -408,5 +415,7 @@ class Box:
 		if self.doneQueue():
 			self.destroy_box()
 			self.log('Done with box')
+		else:
+			self.run()
 
 setCgroup()

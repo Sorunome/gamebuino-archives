@@ -46,7 +46,6 @@
 	</div>
 	<div class="buttongroup">
 		<div class="button" id="edit_file_settings_button">File Settings</div>
-		<div class="button" id="edit_build_settings_button">Build Settings</div>
 		<div class="button" id="edit_builds_button">Builds</div>
 	</div>
 	{:children}
@@ -162,17 +161,12 @@
 	$(function(){
 		$('#edit_file_settings_button').click(function(e){
 			e.preventDefault();
-			$('#edit_build_settings,#edit_builds').addClass('hidden');
+			$('#edit_builds').addClass('hidden');
 			$('#edit_file_settings').removeClass('hidden');
-		});
-		$('#edit_build_settings_button').click(function(e){
-			e.preventDefault();
-			$('#edit_file_settings,#edit_builds').addClass('hidden');
-			$('#edit_build_settings').removeClass('hidden');
 		});
 		$('#edit_builds_button').click(function(e){
 			e.preventDefault();
-			$('#edit_file_settings,#edit_build_settings').addClass('hidden');
+			$('#edit_file_settings').addClass('hidden');
 			$('#edit_builds').removeClass('hidden');
 		});
 		$('#edit_file_settings').removeClass('hidden');

@@ -3,19 +3,6 @@
 	<b>Error: file not found</b>
 	{:return}
 {#endif}
-{:set $versions array(
-	'',
-	'<img src="/wiki/gamelist/alpha.png" alt="alpha"> Alpha',
-	'<img src="/wiki/gamelist/beta.png" alt="beta"> Beta',
-	'<img src="/wiki/gamelist/release.png" alt="release"> Finished'
-)}
-{:set $complexities array(
-	'',
-	'<img src="/wiki/gamelist/basic.png" alt="basic"> Basic code complexity',
-	'<img src="/wiki/gamelist/intermediate.png" alt="intermediate"> Intermediate code complexity',
-	'<img src="/wiki/gamelist/advanced.png" alt="advanced"> Advanced code complexity'
-)}
-
 
 
 {#if !{{public}}}
@@ -59,10 +46,7 @@
 	<tr><td>Last&nbsp;Updated</td><td>{date($user->data['user_dateformat'],{{ts_updated}})}</td></tr>
 	<tr><td>Description</td><td>{!str_replace("\n",'<br>',htmlspecialchars({{description}}))}</td></tr>
 	{#if {{version}}}
-		<tr><td>Version</td><td>{!$versions[{{version}}]}</td></tr>
-	{#endif}
-	{#if {{complexity}}}
-		<tr><td>Complexity</td><td>{!$complexities[{{complexity}}]}</td></tr>
+		<tr><td>Version</td><td>{version}</td></tr>
 	{#endif}
 	{#if {{forum_url}}}
 		<tr><td>Forum-Topic</td><td><a href="{forum_url}" target="_blank">{forum_url}</a></td></tr>

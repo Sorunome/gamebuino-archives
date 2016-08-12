@@ -11,7 +11,7 @@ if(isset($request)){
 	$request->enable_super_globals();
 }
 
-define('FILE_EXTRA_FRAGMENT',"t1.`filename`,t1.`category`,t1.`forum_url`,t1.`repo_url`,t1.`version`,t1.`complexity`,UNIX_TIMESTAMP(t1.`ts_updated`) AS `ts_updated`,UNIX_TIMESTAMP(t1.`ts_added`) AS `ts_added`,t1.`hits`,t1.`build_use`,t1.`file_type`");
+define('FILE_EXTRA_FRAGMENT',"t1.`filename`,t1.`category`,t1.`forum_url`,t1.`repo_url`,UNIX_TIMESTAMP(t1.`ts_updated`) AS `ts_updated`,UNIX_TIMESTAMP(t1.`ts_added`) AS `ts_added`,t1.`hits`,t1.`file_type`");
 define('FILE_SELECT',"t1.`id`,t1.`author`,t1.`description`,t1.`images`,t1.`name`,t1.`downloads`,t1.`upvotes`,t1.`downvotes`,t2.`username`,t1.`public` FROM `archive_files` AS t1 INNER JOIN ".USERS_TABLE." AS t2 ON t1.`author` = t2.`user_id`");
 define('FILE_EXTRA_SELECT',FILE_EXTRA_FRAGMENT." FROM `archive_files` AS t1");
 define('AUTHOR_SELECT',"t1.`username`,t1.`user_id`,COUNT(t2.`id`) AS `files` FROM ".USERS_TABLE." AS t1 INNER JOIN `archive_files` AS t2 ON t1.`user_id`=t2.`author`");
@@ -275,32 +275,19 @@ class File{
 	private $categories = array();
 	private $forum_url = '';
 	private $repo_url = '';
-	private $version = 0;
-	private $complexity = 0;
 	private $ts_updated = 0;
 	private $ts_added = 0;
 	private $hits = 0;
-	private $build_use = true;
 	private $file_type = array('type' => 0);
 	
 	private $edit = false;
-	private $autobuild = true;
-	private $build_path = '';
-	private $build_command = '';
-	private $build_makefile = false;
-	private $build_filename = '';
-	private $build_movepath = '';
+	private $name_83 = '';
 	private function populate_edit($obj){
 		if($this->file_type['type'] == 1){ // github!
 			$this->file_type['git_url'] = $obj['git_url'];
 			$this->file_type['github_repo'] = $obj['github_repo'];
 		}
-		$this->autobuild = $obj['autobuild']?true:false;
-		$this->build_path = $obj['build_path'];
-		$this->build_command = $obj['build_command'];
-		$this->build_makefile = $obj['build_makefile']?true:false;
-		$this->build_filename = $obj['build_filename'];
-		$this->build_movepath = $obj['build_movepath'];
+		$this->name_83 = $obj['name_83'];
 		
 		$this->edit = true;
 	}
@@ -312,12 +299,9 @@ class File{
 		}
 		$this->forum_url = $obj['forum_url'];
 		$this->repo_url = $obj['repo_url'];
-		$this->version = (int)$obj['version'];
-		$this->complexity = (int)$obj['complexity'];
 		$this->ts_updated = (int)$obj['ts_updated'];
 		$this->ts_added = (int)$obj['ts_added'];
 		$this->hits = (int)$obj['hits'];
-		$this->build_use = $obj['build_use']?true:false;
 		$this->file_type['type'] = (int)$obj['file_type'];
 		
 		$this->extra = true;
@@ -353,7 +337,7 @@ class File{
 			return;
 		}
 		global $db;
-		$result = $db->sql_query(query_escape("SELECT t1.`git_url`,t1.`github_repo`,t1.`autobuild`,t1.`build_path`,t1.`build_command`,t1.`build_makefile`,t1.`build_filename`,t1.`build_movepath` FROM `archive_files` AS t1 WHERE t1.`id`=%d",$this->id));
+		$result = $db->sql_query(query_escape("SELECT t1.`git_url`,t1.`github_repo`,t1.`name_83` FROM `archive_files` AS t1 WHERE t1.`id`=%d",$this->id));
 		if($obj = $db->sql_fetchrow($result)){
 			$this->populate_edit($obj);
 		}
@@ -424,7 +408,6 @@ class File{
 			'repo_url' => $this->repo_url,
 			'images' => $this->images,
 			'categories' => $this->categories,
-			'build_use' => $this->build_use,
 			'zip' => $this->file_type['type'] == 0?Upload::getZipName($this->id):''
 		));
 	}
@@ -433,12 +416,7 @@ class File{
 		
 		return array_merge($this->json(),array(
 			'file_type' => $this->file_type,
-			'autobuild' => $this->autobuild,
-			'build_path' => $this->build_path,
-			'build_command' => $this->build_command,
-			'build_makefile' => $this->build_makefile,
-			'build_filename' => $this->build_filename,
-			'build_movepath' => $this->build_movepath
+			'name_83' => $this->name_83
 		));
 	}
 	public function template_short(){
@@ -476,10 +454,6 @@ class File{
 		$t->loadJSON($j);
 		
 		$tb = new Template('edit_file_settings.inc');
-		$tb->loadJSON($j);
-		$t->addChild($tb);
-		
-		$tb = new Template('edit_build_settings.inc');
 		$tb->loadJSON($j);
 		$t->addChild($tb);
 		
@@ -660,31 +634,6 @@ class File{
 		}
 		return -1;
 	}
-	private function examin(){
-		global $buildserver_path,$db;
-		if($this->build_command == 'DETECTING'){ // no need to run this
-			return;
-		}
-		$data = array(
-			'type' => 'examin',
-			'fid' => $this->id,
-			'cmd_after' => -1
-		);
-		if(isset($_POST['autobuild_after_autopick']) && $_POST['autobuild_after_autopick']){
-			$data['cmd_after'] = 0;
-		}
-		$socket = socket_create(AF_UNIX,SOCK_STREAM,0);
-		if(!@socket_connect($socket,$buildserver_path.'/socket.sock')){
-			$db->sql_query(query_escape("INSERT INTO `archive_queue` (`file`,`type`,`status`,`output`,`cmd_after`) VALUES (%d,1,1,'',%d)",$this->id,$data['cmd_after']));
-			$this->build_command = 'DETECTING';
-			$db->sql_query(query_escape("UPDATE `archive_files` SET `build_command` = 'DETECTING' WHERE `id`=%d",$this->id));
-			return;
-		}
-		
-		$s = json_encode($data)."\n";
-		socket_write($socket,$s,strlen($s));
-		socket_close($socket);
-	}
 	public function save(){
 		global $userid,$db;
 		if(!$this->canEdit()){
@@ -697,8 +646,6 @@ class File{
 			'description' => '',
 			'forum_url' => '',
 			'repo_url' => '',
-			'version' => 0,
-			'complexity' => 0,
 			'category' => '',
 			'delimage0' => 'false',
 			'delimage1' => 'false',
@@ -706,21 +653,13 @@ class File{
 			'delimage3' => 'false',
 			'file_type' => 0,
 			'github_repo' => '',
-			'build_path' => '',
-			'build_command' => '',
-			'build_makefile' => 0,
-			'build_filename' => '',
-			'build_movefile' => '',
-			'autobuild' => 0,
-			'build_use' => 0
+			'name_83' => ''
 		),$_POST);
 		
-		$vars['complexity'] = (int)$vars['complexity'];
-		$vars['version'] = (int)$vars['version'];
+		if($this->exists()){
+			$vars['name_83'] = $this->name_83;
+		}
 		$vars['file_type'] = (int)$vars['file_type'];
-		$vars['build_makefile'] = (int)$vars['build_makefile'];
-		$vars['autobuild'] = (int)$vars['autobuild'];
-		$vars['build_use'] = (int)$vars['build_use'];
 		$vars['forum_url'] = getUrl_safe($vars['forum_url']);
 		$vars['repo_url'] = getUrl_safe($vars['repo_url']);
 		
@@ -728,13 +667,6 @@ class File{
 			$_POST[$a] = $vars[$a];
 		}
 		
-		if(isset($_POST['omit_build_settings']) && $_POST['omit_build_settings']){
-			unset($_POST['build_path']);
-			unset($_POST['build_command']);
-			unset($_POST['build_makefile']);
-			unset($_POST['build_filename']);
-			unset($_POST['build_movefile']);
-		}
 		if(!$this->validate_save_vars($vars)){
 			return 'Missing required fields';
 		}
@@ -761,7 +693,7 @@ class File{
 		$imagesarray = $this->imagearray_save_vars($vars);
 		$query = "UPDATE `archive_files` SET";
 		$params = array();
-		$updateVars = array('name','description','forum_url','repo_url','version','complexity','build_path','build_command','build_makefile','build_filename','autobuild','build_movefile','build_use');
+		$updateVars = array('name','description','forum_url','repo_url','name_83');
 		foreach(array_merge($updateVars,array('category')) as $v){
 			if(isset($_POST[$v])){
 				$query .= "`$v`='%s',";
@@ -783,9 +715,6 @@ class File{
 			}
 		}
 		$s .= 'Saved file! <a href="?file='.$this->id.'">view it</a>';
-		if(isset($_POST['autopick_build_settings']) && $_POST['autopick_build_settings']){
-			$this->examin();
-		}
 		return $s;
 	}
 	public function downloadInfo(){

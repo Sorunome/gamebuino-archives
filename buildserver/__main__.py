@@ -27,8 +27,10 @@ def makeUnicode(s):
 	except:
 		return s
 
+LOGLEVELS = ['ERROR','INFO','DEBUG']
+
 def writeLog(s,level):
-	if ['ERROR','INFO','DEBUG'].index(level) > args.loglevel:
+	if LOGLEVELS.index(level) > args.loglevel:
 		return
 	s = datetime.datetime.now().strftime('[%a, %d %b %Y %H:%M:%S.%f]')+' ['+level+'] '+str(s)
 	if args.verbose or level == 'ERROR':
@@ -36,25 +38,53 @@ def writeLog(s,level):
 	args.logfile.write(s+'\n')
 	args.logfile.flush()
 
+QUEUE_CMD_TYPES = ['build','publish']
+
 class Box(sandbox.Box):
+	TYPE_BUILD = 0
+	TYPE_EXAMIN = 1
 	def log(self,s,level = 'DEBUG'):
 		s = str(s)
 		writeLog('[box '+str(self.i)+'] '+s,level)
 	def done_examin(self,data):
-		qdata = sql.query("SELECT t1.`file`,t1.`type`,t1.`status`,t1.`cmd_after` FROM `archive_queue` AS t1 INNER JOIN `archive_files` AS t2 ON t1.`file`=t2.`id` WHERE t1.`id`=%s",[int(self.key)])
+		qdata = sql.query("SELECT t1.`file`,t1.`type`,t1.`status`,t1.`cmd_after`,t2.`name_83` FROM `archive_queue` AS t1 INNER JOIN `archive_files` AS t2 ON t1.`file`=t2.`id` WHERE t1.`id`=%s",[int(self.key)])
 		if qdata:
 			qdata = qdata[0]
-			if qdata['type'] == 1 and qdata['status'] == 2: # we were actually examining it, so everything is fine
+			if qdata['type'] == 0 and qdata['status'] == 2: # we were actually examining it, so everything is fine
+				status = 0
 				if self.success:
-					sql.query("UPDATE `archive_files` SET `build_path`=%s,`build_command`=%s,`build_makefile`=1,`build_filename`=%s,`build_movepath`=%s WHERE `id`=%s",[data['path'],'make INO_FILE='+data['ino_file']+' NAME=%name%',data['filename'],data['movepath'],qdata['file']])
-					if qdata['cmd_after'] != -1:
-						parseClientInput({
-							'type':['build','examin'][qdata['cmd_after']],
-							'fid':qdata['file']
-						})
-				else:
-					sql.query("UPDATE `archive_files` SET `build_command`='ERROR' WHERE `id`=%s",[qdata['file']])
-				sql.query("DELETE FROM `archive_queue` WHERE `id`=%s",[int(self.key)])
+					status = 2
+					self.setBoxType(self.TYPE_BUILD)
+					self.state = self.STATE_READY
+					self.commands = []
+					if 'path' in data and data['path']:
+						self.build_path(data['path'])
+					if data['use_buildsystem']:
+						if 'movepath' in data and data['movepath']:
+							self.build_movepath(data['movepath'])
+						if 'makefile' in data and data['makefile']:
+							self.build_makefile(data['makefile'])
+							
+						data['command'] = data['command'].replace('%name%',qdata['name_83'])
+						self.build_command(data['command'])
+						if data['include']:
+							self.build_includefiles(data['include'])
+					else:
+						# TODO: include the files (binaries) to be copied
+						if 'include' in data['include']:
+							self.build_includefiles(data['include'])
+						else:
+							self.success = False
+							status = 0
+				output = ''
+				try:
+					with open(sandbox_path+'/build/.output','r') as f:
+						output = f.read()
+				except:
+					output = ''
+				sql.query("UPDATE `archive_queue` SET `status`=%s,`output`=%s WHERE `id`=%s",[status,output,int(self.key)])
+				return not self.success
+		return True
 	def done_build(self,sandbox_path):
 		qdata = sql.query("SELECT t1.`file`,t1.`type`,t1.`status`,t2.`public`,t1.`cmd_after` FROM `archive_queue` AS t1 INNER JOIN `archive_files` AS t2 ON t1.`file`=t2.`id` WHERE t1.`id`=%s",[int(self.key)])
 		if qdata:
@@ -80,13 +110,9 @@ class Box(sandbox.Box):
 						status = 4
 					else:
 						shutil.copytree(sandbox_path+'/build/bin',out_path)
-						if qdata['public']:
-							sql.query("UPDATE `archive_files` SET `ts_updated`=FROM_UNIXTIME(%s) WHERE `id`=%s",[timestamp,int(qdata['file'])])
-						else:
-							sql.query("UPDATE `archive_files` SET `ts_updated`=FROM_UNIXTIME(%s),`ts_added`=FROM_UNIXTIME(%s),`public`=1 WHERE `id`=%s",[timestamp,timestamp,int(qdata['file'])])
 					if qdata['cmd_after'] != -1:
 						parseClientInput({
-							'type':['build','examin'][qdata['cmd_after']],
+							'type':QUEUE_CMD_TYPES[qdata['cmd_after']],
 							'fid':qdata['file']
 						})
 				output = ''
@@ -112,6 +138,7 @@ class Box(sandbox.Box):
 							break
 				self.done_build(sandbox_path)
 			elif self.boxtype == self.TYPE_EXAMIN:
+				json_data = {}
 				try:
 					if self.success:
 						with open(sandbox_path+'/build/.results.json','r') as f:
@@ -119,7 +146,7 @@ class Box(sandbox.Box):
 				except:
 					json_data = {}
 					self.success = False
-				self.done_examin(json_data)
+				return self.done_examin(json_data)
 		except:
 			self.log(traceback.format_exc(),'ERROR')
 		return True # we want to trash the sandbox!
@@ -149,7 +176,7 @@ def parseClientInput(data,key = '',socket = False):
 	writeLog('[client] >> '+str(data),'INFO')
 	success = False
 	if data['type'] == 'build':
-		fdata = sql.query("SELECT `id`,`file_type`,`git_url`,`build_path`,`build_command`,`build_makefile`,`build_filename`,`build_movepath` FROM `archive_files` WHERE `id`=%s",[int(data['fid'])])
+		fdata = sql.query("SELECT `id`,`file_type`,`git_url` FROM `archive_files` WHERE `id`=%s",[int(data['fid'])])
 		if fdata:
 			fdata = fdata[0]
 			if key:
@@ -159,34 +186,27 @@ def parseClientInput(data,key = '',socket = False):
 				key = str(sql.insertId())
 			
 			if fdata['file_type'] <= 1:
-				fdata['build_command'] = fdata['build_command'].replace('%name%',fdata['build_filename'])
 				obj = {
 					'type':'build',
 					'build':{
-						'key':key,
-						'path':fdata['build_path'],
-						'command':fdata['build_command']
+						'key':key
 					}
 				}
-				if fdata['build_makefile']:
-					obj['build']['makefile'] = 'gamebuino.mk'
-				if fdata['build_movepath']:
-					obj['build']['movepath'] = fdata['build_movepath']
-				if fdata['build_command'] != '':
-					if fdata['file_type'] == 0:
-						zipfile = config['public_html']+'/uploads/zip/'+str(fdata['id'])+'.zip'
-						if os.path.isfile(zipfile):
-							obj['build']['type'] = 'zip'
-							obj['build']['zip'] = zipfile
-							
-							QUEUE.append(obj)
-							success = True
-					elif fdata['file_type'] == 1:
-						obj['build']['type'] = 'git'
-						obj['build']['git'] = fdata['git_url']
+				
+				if fdata['file_type'] == 0:
+					zipfile = config['public_html']+'/uploads/zip/'+str(fdata['id'])+'.zip'
+					if os.path.isfile(zipfile):
+						obj['build']['type'] = 'zip'
+						obj['build']['zip'] = zipfile
 						
 						QUEUE.append(obj)
 						success = True
+				elif fdata['file_type'] == 1:
+					obj['build']['type'] = 'git'
+					obj['build']['git'] = fdata['git_url']
+					
+					QUEUE.append(obj)
+					success = True
 			if success and socket:
 				try:
 					socket.sendall(bytes(json.dumps({
@@ -195,42 +215,6 @@ def parseClientInput(data,key = '',socket = False):
 				except:
 					pass
 			
-	elif data['type'] == 'examin':
-		fdata = sql.query("SELECT `id`,`file_type`,`git_url` FROM `archive_files` WHERE `id`=%s",[int(data['fid'])])
-		if fdata:
-			fdata = fdata[0]
-			
-			if key:
-				sql.query("UPDATE `archive_queue` SET `status`=2 WHERE `id`=%s",[int(key)])
-			else:
-				sql.query("INSERT INTO `archive_queue` (`file`,`type`,`status`,`output`) VALUES (%s,1,2,'')",[fdata['id']])
-				key = str(sql.insertId())
-			if fdata['file_type'] <= 1:
-				if fdata['file_type'] == 0:
-					zipfile = config['public_html']+'/uploads/zip/'+str(fdata['id'])+'.zip'
-					if os.path.isfile(zipfile):
-						QUEUE.append({
-							'type':'examin',
-							'examin':{
-								'type':'zip',
-								'zip':zipfile,
-								'key':key
-							}
-						})
-						success = True;
-				elif fdata['file_type'] == 1:
-					if fdata['git_url'] != '':
-						QUEUE.append({
-							'type':'examin',
-							'examin':{
-								'type':'git',
-								'key':key,
-								'git':fdata['git_url']
-							}
-						})
-						success = True
-			if success:
-				sql.query("UPDATE `archive_files` SET `build_command`='DETECTING' WHERE `id`=%s",[fdata['id']])
 	elif data['type'] == 'destroy_template':
 		QUEUE.append({
 			'type':'destroy_template'
@@ -283,34 +267,12 @@ class QueueHandler:
 						if not b:
 							self.append(data) # we couldn't find a jail, let's try again later!
 							continue
-						b.setBoxType(b.TYPE_BUILD)
+						b.setBoxType(b.TYPE_EXAMIN) # we auto-examin it first
 						b.set_key(data['build']['key'])
 						if data['build']['type'] == 'zip':
 							b.build_zip(data['build']['zip'])
 						elif data['build']['type'] == 'git':
 							b.build_git(data['build']['git'])
-						if 'path' in data['build']:
-							b.build_path(data['build']['path'])
-						if 'movepath' in data['build']:
-							b.build_movepath(data['build']['movepath'])
-						if 'makefile' in data['build']:
-							b.build_makefile(data['build']['makefile'])
-						b.build_command(data['build']['command'])
-						if 'include' in data['build']:
-							b.build_includefiles(data['build']['include'])
-						b.thread.start()
-					elif data['type'] == 'examin':
-						b = self.getIdleBox()
-						if not b:
-							self.append(data)
-							continue
-						b.setBoxType(b.TYPE_EXAMIN)
-						b.set_key(data['examin']['key'])
-						if data['examin']['type'] == 'zip':
-							b.build_zip(data['examin']['zip'])
-						elif data['examin']['type'] == 'git':
-							b.build_git(data['examin']['git'])
-						
 						b.build_examin()
 						b.thread.start()
 					elif data['type'] == 'destroy_template':
@@ -347,10 +309,10 @@ if __name__ == '__main__':
 	parser = argparse.ArgumentParser('python buildserver',description='Buildserver for the Gamebuino archives')
 	
 	parser.add_argument('-v','--verbose',help='output logs to terminal',action='store_true',default=False)
-	parser.add_argument('-l','--loglevel',help='set the log level (default: ERROR)',default='ERROR',choices=['DEBUG','INFO','ERROR'])
+	parser.add_argument('-l','--loglevel',help='set the log level (default: ERROR)',default='ERROR',choices=LOGLEVELS)
 	parser.add_argument('-o','--logfile',help='specify a file where to log to',default=PATH+'buildserver.log',type=argparse.FileType('w+'),metavar='FILE')
 	args = parser.parse_args()
-	args.loglevel = ['ERROR','INFO','DEBUG'].index(args.loglevel)
+	args.loglevel = LOGLEVELS.index(args.loglevel)
 	
 	if not os.path.isdir(PATH+'output'):
 		if os.path.exists(PATH+'output'):

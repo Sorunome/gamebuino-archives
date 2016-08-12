@@ -41,7 +41,7 @@ if(isset($_GET['clearTemplateCache'])){
 	}else{
 		$messages[] = 'Triggered wiping of the sandbox template!';
 		if(isset($_GET['triggerBuilds'])){
-			$res = $db->sql_query("SELECT ".FILE_EXTRA_FRAGMENT.",".FILE_SELECT." WHERE t1.`build_use`=1 AND t1.`autobuild`=1");
+			$res = $db->sql_query("SELECT ".FILE_EXTRA_FRAGMENT.",".FILE_SELECT);
 			$i = 0;
 			while($o = $db->sql_fetchrow($res)){
 				$f = new File($o,true);

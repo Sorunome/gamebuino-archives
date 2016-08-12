@@ -1,51 +1,7 @@
-{:set $versionsDropdown array(
-	'--none--',
-	'Alpha',
-	'Beta',
-	'Finished'
-)}
-{:set $complexitiesDropdown array(
-	'--none--',
-	'Basic',
-	'Intermediate',
-	'Advanced'
-)}
 <div class="hidden" id="edit_file_settings">
 	<h2>File Settings</h2>
 	<label>Forum-Topic (optional):<input type="url" name="forum_url" value="{forum_url}"></label>
 			{!getHelpHTML('A link to the forum topic where discussion about this program/game occured')}<br>
-	<label>Version:<select name="version" size="1">
-		{#foreach $versionsDropdown as $i => $v}
-				<option value="{$i}" {#if {{version}} == $i}selected{#endif}>{$v}</option>
-		{#endforeach}
-	</select></label>
-			{!getHelpHTML('The version of the game, defined as the following:<br><table>
-					<tr>
-						<td>alpha</td><td>game under development with the basic gameplay implemented</td>
-					</tr>
-					<tr>
-						<td>beta</td><td>a real game you can enjoy, but it still lacks a few features and a final polish</td>
-					</tr>
-					<tr>
-						<td>release</td><td>the game is finished, working and will no longer evolve</td>
-					</tr>
-				</table>')}<br>
-	<label>Complexity:<select name="complexity" size="1">
-		{#foreach $complexitiesDropdown as $i => $c}
-			<option value="{$i}" {#if {{complexity}} == $i}selected{#endif}>{$c}</option>
-		{#endforeach}
-	</select></label>
-			{!getHelpHTML('How complex the code is, defined as the following:<br><table>
-				<tr>
-					<td>basic</td><td>the code fits in one file <&nbsp;1500 lines and is easy to understand for a beginner</td>
-				</tr>
-				<tr>
-					<td>intermediate</td><td>program across several files, object oriented, PROGMEM, tile maps, etc.</td>
-				</tr>
-				<tr>
-					<td>advanced</td><td>involves assembly, pointers, 3D, streaming from the SD card, multi-player, etc.</td>
-				</tr>
-			</table>')}<br>
 	<input type="hidden" name="category" value="{'['.implode('][',{{categories}}).']'}">
 	Tags:{!getHelpHTML('The tags your game should have, you can add multiple')}
 	<span id="categoriesContent">Please enable Javascript!</span><br>
