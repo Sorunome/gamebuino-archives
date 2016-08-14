@@ -1,11 +1,12 @@
 {
 	"max_sandboxes":4,
-	"timeout":900,
+	"timeout":300,
 	"public_html":"/home/sorunome/public_html/archives",
+	"phpbb_path":"/home/sorunome/public_html/phpBB3",
 	"sql":{
 		"server":"localhost",
 		"user":"phpBB",
-		"passwd":"dWcnxu95ZsQfJL7a",
+		"passwd":"QjdsMuEwus7rdvRu",
 		"db":"phpBB"
 	}
 }

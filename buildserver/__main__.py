@@ -1,4 +1,4 @@
-import os,sys,traceback,server,sandbox,json,time,hashlib,lxc,shutil,argparse,datetime
+import os,sys,traceback,server,sandbox,json,time,hashlib,lxc,shutil,argparse,datetime,subprocess
 from sql import Sql
 
 if os.geteuid() == 0:
@@ -46,6 +46,19 @@ class Box(sandbox.Box):
 	def log(self,s,level = 'DEBUG'):
 		s = str(s)
 		writeLog('[box '+str(self.i)+'] '+s,level)
+	def notify_query(self,qid):
+		subprocess.call(['php',config['phpbb_path']+'/bin/phpbbcli.php','archive:notify','qid='+str(qid)])
+	def reQueue(self):
+		qdata = sql.query("SELECT `file`,`type`,`cmd_after` FROM `archive_queue` WHERE `id`=%s",[int(self.key)])
+		if qdata:
+			qdata = qdata[0]
+			data = {
+				'type':QUEUE_CMD_TYPES[int(qdata['type'])],
+				'fid':int(qdata['file']),
+				'cmd_after':int(qdata['cmd_after'])
+			}
+			
+			parseClientInput(data,self.key)
 	def done_examin(self,data):
 		qdata = sql.query("SELECT t1.`file`,t1.`type`,t1.`status`,t1.`cmd_after`,t2.`name_83` FROM `archive_queue` AS t1 INNER JOIN `archive_files` AS t2 ON t1.`file`=t2.`id` WHERE t1.`id`=%s",[int(self.key)])
 		if qdata:
@@ -83,6 +96,8 @@ class Box(sandbox.Box):
 				except:
 					output = ''
 				sql.query("UPDATE `archive_queue` SET `status`=%s,`output`=%s WHERE `id`=%s",[status,output,int(self.key)])
+				if status == 0: # we failed so let's report it!
+					self.notify_query(int(self.key))
 				return not self.success
 		return True
 	def done_build(self,sandbox_path):
@@ -132,6 +147,7 @@ class Box(sandbox.Box):
 				except:
 					output = ''
 				sql.query("UPDATE `archive_queue` SET `status`=%s,`output`=%s WHERE `id`=%s",[status,output,int(self.key)])
+				self.notify_query(int(self.key))
 	def doneQueue(self):
 		try:
 			c = lxc.Container('gamebuino-buildserver-'+str(self.i))
@@ -336,7 +352,7 @@ if __name__ == '__main__':
 	
 	srv = server.Server(PATH+'/socket.sock',0,ServerLink)
 	srv.start()
-	res = sql.query("SELECT `id`,`file`,`type` FROM `archive_queue` WHERE `status`=1") # get the queued things from when we were offline
+	res = sql.query("SELECT `id`,`file`,`type` FROM `archive_queue` WHERE `status`=1 OR `status`=2") # get the queued things from when we were offline
 	for r in res:
 		writeLog('[startup] Old Command: '+str(r),'DEBUG')
 		parseClientInput({

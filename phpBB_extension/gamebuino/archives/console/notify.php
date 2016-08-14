@@ -19,7 +19,7 @@ class notify extends \phpbb\console\command\command {
 		$this->user->add_lang_ext('gamebuino/archives','cli');
 		$this
 			->setName('archive:notify')
-			->setDescription($this->user->lang('ARCHIVES_CLI_BUILD_FAILED'))
+			->setDescription($this->user->lang('ARCHIVES_CLI_BUILD'))
 			->addArgument(
 				'qid',
 				InputArgument::REQUIRED,

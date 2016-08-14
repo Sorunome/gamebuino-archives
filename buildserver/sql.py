@@ -7,7 +7,6 @@ with open(PATH+'settings.json') as f:
 
 #sql handler
 class Sql:
-	db = False
 	lastRowId = -1
 	def fetchOneAssoc(self,cur):
 		data = cur.fetchone()
@@ -19,9 +18,9 @@ class Sql:
 			ret[name[0]] = value
 		print(ret)
 		return ret
-	def getDbCursor(self):
+	def getDb(self):
 		try:
-			self.db = pymysql.connect(
+			return pymysql.connect(
 				host=config['sql']['server'],
 				user=config['sql']['user'],
 				password=config['sql']['passwd'],
@@ -31,7 +30,7 @@ class Sql:
 				cursorclass=pymysql.cursors.DictCursor)
 		except:
 			try:
-				self.db = pymysql.connect(
+				return pymysql.connect(
 					host=config['sql']['server'],
 					user=config['sql']['user'],
 					password=config['sql']['passwd'],
@@ -40,7 +39,7 @@ class Sql:
 					cursorclass=pymysql.cursors.DictCursor)
 			except:
 				try:
-					self.db = pymysql.connect(
+					return pymysql.connect(
 						host=config['sql']['server'],
 						user=config['sql']['user'],
 						passwd=config['sql']['passwd'],
@@ -49,36 +48,35 @@ class Sql:
 						charset='utf8',
 						cursorclass=pymysql.cursors.DictCursor)
 				except:
-					self.db = pymysql.connect(
+					return pymysql.connect(
 						host=config['sql']['server'],
 						user=config['sql']['user'],
 						passwd=config['sql']['passwd'],
 						db=config['sql']['db'],
 						charset='utf8',
 						cursorclass=pymysql.cursors.DictCursor)
+		return False
 		return self.db.cursor()
 	def query(self,q,p = []):
 		try:
-			cur = self.getDbCursor()
+			db = self.getDb()
+			assert(db)
+			cur = db.cursor()
 			cur.execute(q,tuple(p))
 			self.lastRowId = cur.lastrowid
 			
-			self.db.commit()
+			db.commit()
 			rows = []
 			for row in cur:
 				if row == None:
 					break
 				rows.append(row)
+			
 			cur.close()
-			self.db.close()
+			db.close()
 			return rows
 		except Exception as inst:
 			traceback.print_exc()
 			return False
 	def insertId(self):
 		return self.lastRowId
-	def close(self):
-		try:
-			self.db.close()
-		except:
-			pass

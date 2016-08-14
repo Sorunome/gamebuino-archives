@@ -1,4 +1,4 @@
-import os,sys,lxc,subprocess,getpass,shutil,traceback,time,shlex,threading,json,re,ntpath
+import os,sys,lxc,subprocess,getpass,shutil,traceback,time,shlex,threading,json,re,ntpath,multiprocessing
 
 PATH = os.path.dirname(os.path.abspath(__file__))+'/'
 USERNAME = getpass.getuser()
@@ -15,6 +15,7 @@ def copy_file(a,b):
 	with open(a,'rb') as f:
 		with open(b,'wb+') as g:
 			g.write(f.read())
+
 box_num = 0
 class Box:
 	STATE_UNREADY = 0
@@ -376,8 +377,15 @@ class Box:
 			self.log(traceback.format_exc(),'ERROR')
 			with open('/build/.resp_code','w+') as e:
 				e.write('1')
+	def demote_wrap(self):
+		c = lxc.Container('gamebuino-buildserver-'+str(self.i))
+		assert(c.defined)
+		assert(c.running)
+		c.attach_wait(self.demote,env_policy=lxc.LXC_ATTACH_CLEAR_ENV)
 	def doneQueue(self):
 		return True
+	def reQueue(self):
+		return
 	def run(self):
 		self.log('Entering run-function (state: '+str(self.state)+')')
 		if self.state != self.STATE_READY:
@@ -401,9 +409,16 @@ class Box:
 			assert(c.running)
 			self.log('Container started')
 			
-			c.attach_wait(self.demote,env_policy=lxc.LXC_ATTACH_CLEAR_ENV)
-			
-			self.success = False
+			p = multiprocessing.Process(target=self.demote_wrap)
+			p.start()
+			p.join(config['timeout']*2)
+			if p.is_alive():
+				p.terminate()
+				p.join()
+				self.log('Something went wrong, re-queue-ing the file...')
+				self.reQueue()
+				self.destroy_box()
+				return
 			try:
 				with open(c.get_config_item('lxc.rootfs')+'/build/.resp_code','r') as f:
 					self.success = f.read() == '0'
