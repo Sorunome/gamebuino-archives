@@ -1,6 +1,28 @@
 <?php
 include_once('archive.php');
 
+class File_download extends File {
+	public function downloadInfo(){
+		if(!$this->exists() || !$this->canView()){
+			return array('type' => 'invalid');
+		}
+		$this->goextra();
+		
+		$f = $this->filename;
+		if(!$f){
+			$f = $this->name.'.zip';
+		}
+		return array('type' => 'build','filename' => $f,'id' => $this->id);
+	}
+	public function download(){
+		global $db;
+		if(!$this->exists() || !$this->canView()){
+			return;
+		}
+		$db->sql_freeresult($db->sql_query(query_escape("UPDATE `archive_files` SET `downloads`=`downloads`+1 WHERE `id`=%d",$this->id)));
+	}
+}
+
 function panic(){
 	header('Location:index.php?error');
 	die();
@@ -148,7 +170,7 @@ function dlZip($zippath,$name = 'gamebuino.zip'){
 	return true;
 }
 if(request_var('id',false)){
-	$f = new File(request_var('id','invalid'),true);
+	$f = new File_download(request_var('id','invalid'),true);
 	
 	$i = $f->downloadInfo();
 	
@@ -180,7 +202,7 @@ if(request_var('id',false)){
 	$res = $db->sql_query("SELECT ".FILE_EXTRA_FRAGMENT.",".FILE_SELECT." WHERE t1.`id` IN (".implode(',',$fids).") ORDER BY t1.`id` ASC");
 	$files = array();
 	while($o = $db->sql_fetchrow($res)){
-		$files[] = new File($o,true);
+		$files[] = new File_download($o,true);
 	}
 	$db->sql_freeresult($res);
 	$dlFiles = array();

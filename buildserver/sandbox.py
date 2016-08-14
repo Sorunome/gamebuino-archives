@@ -416,8 +416,8 @@ class Box:
 				p.terminate()
 				p.join()
 				self.log('Something went wrong, re-queue-ing the file...')
-				self.reQueue()
 				self.destroy_box()
+				self.reQueue()
 				return
 			try:
 				with open(c.get_config_item('lxc.rootfs')+'/build/.resp_code','r') as f:

@@ -33,7 +33,7 @@ $(function(){
 			$(this).next().remove();
 			return;
 		}
-		$.get('?build_message={id}').done(function(data){
+		$.get('edit.php?build_message={id}').done(function(data){
 			$(_self).after($('<pre>').text(data));
 		});
 	})
@@ -47,7 +47,7 @@ $(function(){
 				append += '.';
 				if(append.length >= 5){
 					append = '';
-					$.getJSON('index.php?get_build={id}',function(data){
+					$.getJSON('edit.php?get_build={id}',function(data){
 						if(!data.success){
 							clearTimeout(timer);
 							$('#build_{id}').text('ERROR: something went wrong!').addClass('fail');

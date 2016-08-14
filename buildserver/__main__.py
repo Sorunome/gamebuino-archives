@@ -352,12 +352,13 @@ if __name__ == '__main__':
 	
 	srv = server.Server(PATH+'/socket.sock',0,ServerLink)
 	srv.start()
-	res = sql.query("SELECT `id`,`file`,`type` FROM `archive_queue` WHERE `status`=1 OR `status`=2") # get the queued things from when we were offline
+	res = sql.query("SELECT `id`,`file`,`type`,`cmd_after` FROM `archive_queue` WHERE `status`=1 OR `status`=2") # get the queued things from when we were offline
 	for r in res:
 		writeLog('[startup] Old Command: '+str(r),'DEBUG')
 		parseClientInput({
-			'type':['build','examin'][r['type']],
-			'fid':r['file']
+			'type':QUEUE_CMD_TYPES[r['type']],
+			'fid':r['file'],
+			'cmd_after',int(r['cmd_after'])
 		},str(r['id']))
 	
 	try:

@@ -16,7 +16,7 @@
 		<a class="button" href="./">Show files</a>
 		{#if $isLoggedIn}
 			<a class="button" href="/forum/ucp.php?mode=logout">Logout [ {$username} ]</a>
-			<a class="button" href="./?edit=-1">Upload file</a>
+			<a class="button" href="./edit.php">Upload file</a>
 			{#if $isAdmin}
 				<a class="button" href="./admin.php">Admin</a>
 			{#endif}

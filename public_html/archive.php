@@ -11,7 +11,7 @@ if(isset($request)){
 	$request->enable_super_globals();
 }
 
-define('FILE_EXTRA_FRAGMENT',"t1.`filename`,t1.`category`,t1.`forum_url`,t1.`repo_url`,UNIX_TIMESTAMP(t1.`ts_updated`) AS `ts_updated`,UNIX_TIMESTAMP(t1.`ts_added`) AS `ts_added`,t1.`hits`,t1.`file_type`,t1.`extra_authors`");
+define('FILE_EXTRA_FRAGMENT',"t1.`filename`,t1.`category`,t1.`topic_id`,t1.`repo_url`,UNIX_TIMESTAMP(t1.`ts_updated`) AS `ts_updated`,UNIX_TIMESTAMP(t1.`ts_added`) AS `ts_added`,t1.`hits`,t1.`file_type`,t1.`extra_authors`");
 define('FILE_SELECT',"t1.`id`,t1.`author`,t1.`description`,t1.`images`,t1.`name`,t1.`downloads`,t1.`upvotes`,t1.`downvotes`,t2.`username`,t1.`public` FROM `archive_files` AS t1 INNER JOIN ".USERS_TABLE." AS t2 ON t1.`author` = t2.`user_id`");
 define('FILE_EXTRA_SELECT',FILE_EXTRA_FRAGMENT." FROM `archive_files` AS t1");
 define('AUTHOR_SELECT',"t1.`username`,t1.`user_id`,COUNT(t2.`id`) AS `files` FROM ".USERS_TABLE." AS t1 INNER JOIN `archive_files` AS t2 ON t1.`user_id`=t2.`author`");
@@ -97,26 +97,6 @@ function getHelpHTML($s){
 	return '<div class="help"><img src="help_icon.png"><div class="text">'.$s.'</div></div>';
 }
 
-function getBuildOutputMessage($id){
-	global $db;
-	if(!is_numeric($id)){
-		return '';
-	}
-	$res = $db->sql_query(query_escape("SELECT `file`,`status`,`output` FROM `archive_queue` WHERE `id`=%d AND `type`=0",(int)$id));
-	if(!($qdata = $db->sql_fetchrow($res))){
-		$db->sql_freeresult($res);
-		return '';
-	}
-	$db->sql_freeresult($res);
-	$f = new File($qdata['file']);
-	if(!$f->canEdit()){
-		return '';
-	}
-	if(in_array($qdata['status'],array(1,2))){
-		return ''; // TODO: contact backend
-	}
-	return $qdata['output'];
-}
 
 class Author{
 	private $id = -1;
@@ -273,6 +253,7 @@ class File{
 	
 	private $filename = '';
 	private $categories = array();
+	private $forum_replies = 0;
 	private $forum_url = '';
 	private $repo_url = '';
 	private $ts_updated = 0;
@@ -280,25 +261,20 @@ class File{
 	private $hits = 0;
 	private $extra_authors = array();
 	private $file_type = array('type' => 0);
-	
-	private $edit = false;
-	private $name_83 = '';
-	private function populate_edit($obj){
-		if($this->file_type['type'] == 1){ // github!
-			$this->file_type['git_url'] = $obj['git_url'];
-			$this->file_type['github_repo'] = $obj['github_repo'];
-		}
-		$this->name_83 = $obj['name_83'];
-		
-		$this->edit = true;
-	}
 	private function populate_extra($obj){
-		global $db;
-		if(!isset($obj['no_extra_authors']) || $obj['no_extra_authors']){
+		global $db,$forum_url,$forum_scheme;
+		if(!isset($obj['no_extra_queries']) || !$obj['no_extra_queries']){
 			if(preg_match('/^\d+(,\d+)*$/',$obj['extra_authors'])){ // just to be make sure we only have an integer list
 				$res = $db->sql_query("SELECT `user_id`,`username` FROM ".USERS_TABLE." WHERE `user_id` IN (".$obj['extra_authors'].")");
 				while($o = $db->sql_fetchrow($res)){
 					$this->extra_authors[(int)$o['user_id']] = $o['username'];
+				}
+				$db->sql_freeresult($res);
+			}
+			if((int)$obj['topic_id'] != 0){
+				$res = $db->sql_query("SELECT COUNT(`post_id`) AS `num` FROM ".POSTS_TABLE." WHERE `topic_id` = ". (int)$obj['topic_id']);
+				if($o = $db->sql_fetchrow($res)){
+					$this->forum_replies = (int)$o['num'];
 				}
 				$db->sql_freeresult($res);
 			}
@@ -308,7 +284,9 @@ class File{
 		foreach(explode('][',substr($obj['category'],1,strlen($obj['category'])-2)) as $c){
 			$this->categories[] = (int)$c;
 		}
-		$this->forum_url = $obj['forum_url'];
+		if($obj['topic_id'] != 0){
+			$this->forum_url = $forum_scheme.'://'.$forum_url.'/viewtopic.php?t='.$obj['topic_id'];
+		}
 		$this->repo_url = $obj['repo_url'];
 		$this->ts_updated = (int)$obj['ts_updated'];
 		$this->ts_added = (int)$obj['ts_added'];
@@ -338,21 +316,6 @@ class File{
 		if($extra){
 			$this->populate_extra($obj);
 		}
-	}
-	private function goedit(){
-		global $userid,$isAdmin;
-		if($this->edit){
-			return;
-		}
-		if(!($userid == $this->authorId || $isAdmin || !$this->exists)){
-			return;
-		}
-		global $db;
-		$result = $db->sql_query(query_escape("SELECT t1.`git_url`,t1.`github_repo`,t1.`name_83` FROM `archive_files` AS t1 WHERE t1.`id`=%d",$this->id));
-		if($obj = $db->sql_fetchrow($result)){
-			$this->populate_edit($obj);
-		}
-		$db->sql_freeresult($result);
 	}
 	private function goextra(){
 		if($this->extra){ // we are already!
@@ -416,19 +379,12 @@ class File{
 			'complexity' => $this->complexity,
 			'description' => $this->description,
 			'forum_url' => $this->forum_url,
+			'forum_replies' => $this->forum_replies,
 			'repo_url' => $this->repo_url,
 			'images' => $this->images,
 			'categories' => $this->categories,
 			'zip' => $this->file_type['type'] == 0?Upload::getZipName($this->id):'',
 			'extra_authors' => $this->extra_authors
-		));
-	}
-	public function json_edit(){
-		$this->goedit();
-		
-		return array_merge($this->json(),array(
-			'file_type' => $this->file_type,
-			'name_83' => $this->name_83
 		));
 	}
 	public function template_short(){
@@ -456,24 +412,6 @@ class File{
 			$db->sql_freeresult($result);
 		}
 		return $builds;
-	}
-	public function template_edit($file = 'edit.inc'){
-		if($this->edit){
-			$this->goedit();
-		}
-		$t = new Template($file);
-		$j = $this->json_edit();
-		$t->loadJSON($j);
-		
-		$tb = new Template('edit_file_settings.inc');
-		$tb->loadJSON($j);
-		$t->addChild($tb);
-		
-		$tb = new Template('edit_builds.inc');
-		$tb->loadJSON($j);
-		$tb->addChildren($this->template_builds());
-		$t->addChild($tb);
-		return $t;
 	}
 	public function visit(){
 		global $db;
@@ -530,88 +468,11 @@ class File{
 	public function canView(){
 		return !$this->exists() || $this->public || $this->canEdit();
 	}
-	private function validate_save_vars($vars){
-		global $db;
-		if($vars['name'] != '' && $vars['complexity'] >= 0 && $vars['complexity'] <= 3 && $vars['version'] >= 0 && $vars['version'] <= 3 && preg_match("/^(\[\d+\])+$/",$vars['category'])){
-			foreach(explode('][',substr($vars['category'],1,strlen($vars['category'])-2)) as $c){
-				$result = $db->sql_query(query_escape("SELECT `id` FROM `archive_categories` WHERE `id`=%d",$c));
-				if(!$db->sql_fetchrow($result)){
-					$db->sql_freeresult($result);
-					return false;
-				}
-				$db->sql_freeresult($result);
-			}
-			return true;
-		}
-		return false;
-	}
-	private function validate_save_filevars($vars){
-		switch($vars['file_type']){
-			case 0: // zip upload
-				return sizeof($_FILES)>0 && isset($_FILES['zip']) && !is_array($_FILES['zip']['name']) && $_FILES['zip']['name'] !== '';
-			case 1: // github
-				return $vars['github_repo'] != '';
-		}
-		return false;
-	}
-	private function upload_save(&$vars){
-		global $db,$userid;
-		if(!$this->validate_save_filevars($vars)){
-			return false;
-		}
-		$success = false;
-		switch($vars['file_type']){
-			case 0:
-				$success = Upload::zipFile($this->id);
-				break;
-			case 1:
-				if($this->exists() && $this->file_type['github_repo'] == $vars['github_repo']){
-					unset($_GET['repo_url']);
-					return true; // ok, we don't actually need to change something anyways
-				}
-				$included = true;
-				include_once('github.php');
-				$u = new GithubUser($userid);
-				if($success = $u->setRepo($vars['github_repo'],$this->id)){
-					$vars['repo_url'] = $u->getRepoUrl();
-				}
-				break;
-		}
-		if($success){
-			$db->sql_freeresult($db->sql_query(query_escape("UPDATE `archive_files` SET `file_type`=%d WHERE `id`=%d",$vars['file_type'],$this->id)));
-		}
-		return $success;
-	}
-	private function imagearray_save_vars($vars){
-		$fileArray = $this->images;
-		for($i = count($fileArray);$i < 4;$i++){
-			$fileArray[] = '';
-		}
-		$html = '';
-		for($i = 0;$i < 4;$i++){
-			if($vars['delimage'.$i] == 'true'){
-				if($fileArray[$i] != ''){
-					Screenshots::delete($fileArray[$i]);
-					$fileArray[$i] = '';
-				}
-			}
-			if(sizeof($_FILES)>0 && isset($_FILES['image'.$i]) && !is_array($_FILES['image'.$i]['name']) && $_FILES['image'.$i]['name'] !== ''){
-				$a = Screenshots::upload($this->id,$i,$fileArray[$i]);
-				if($a[0] != $fileArray[$i]){ // delete potentially old files
-					Screenshots::delete($fileArray[$i]);
-					$fileArray[$i] = $a[0];
-				}
-				$html .= $a[1];
-			}
-		}
-		return array($fileArray,$html);
-	}
 	public function build(){
 		global $buildserver_path,$db;
 		if(!$this->canEdit()){
 			return -1;
 		}
-		$this->goedit();
 		
 		$res = $db->sql_query(query_escape("SELECT `id` FROM `archive_queue` WHERE `file`=%d AND `type`=0 AND (`status`=1 OR `status`=2)",$this->id));
 		if($db->sql_fetchrow($res)){ // we are already building...
@@ -643,123 +504,6 @@ class File{
 			return $a['id'];
 		}
 		return -1;
-	}
-	public function save(){
-		global $userid,$db;
-		if(!$this->canEdit()){
-			return '';
-		}
-		$this->goedit();
-		$newFile = !$this->exists();
-		$vars = array_merge(array(
-			'name' => '',
-			'description' => '',
-			'forum_url' => '',
-			'repo_url' => '',
-			'category' => '',
-			'delimage0' => 'false',
-			'delimage1' => 'false',
-			'delimage2' => 'false',
-			'delimage3' => 'false',
-			'file_type' => 0,
-			'github_repo' => '',
-			'name_83' => '',
-			'extra_authors' => ''
-		),$_POST);
-		
-		if(preg_match('/^\d+(,\d+)*$/',$vars['extra_authors'])){
-			$a = array_unique(explode(',',$vars['extra_authors']));
-			if($k = array_search((string)$userid,$a) !== false){
-				unset($a[$k]);
-			}
-			$vars['extra_authors'] = implode(',',$a);
-			$result = $db->sql_query("SELECT COUNT(`user_id`) AS `num` FROM ".USERS_TABLE." WHERE `user_id` IN (".$vars['extra_authors'].")");
-			if(!($u = $db->sql_fetchrow($result)) || $u['num'] != sizeof($a)){
-				$vars['extra_authors'] = '';
-			}
-			$db->sql_freeresult($result);
-		}else{
-			$vars['extra_authors'] = '';
-		}
-		if($this->exists()){
-			$vars['name_83'] = $this->name_83;
-		}
-		$vars['file_type'] = (int)$vars['file_type'];
-		$vars['forum_url'] = getUrl_safe($vars['forum_url']);
-		$vars['repo_url'] = getUrl_safe($vars['repo_url']);
-		
-		foreach(array('build_makefile','autobuild','build_use') as $a){ // checkboxes aren't in $_POST
-			$_POST[$a] = $vars[$a];
-		}
-		
-		if(!$this->validate_save_vars($vars)){
-			return 'Missing required fields';
-		}
-		if(!$this->exists()){
-			if($this->validate_save_filevars($vars)){
-				// we add the file here and upload it later!
-				$db->sql_query(query_escape("INSERT INTO `archive_files` (`author`,`votes`) VALUES (%d,'{}')",$userid));
-				$this->id = $db->sql_nextid();
-			}else{
-				return 'Missing zip file!';
-			}
-		}
-		$s = '';
-		if($this->validate_save_filevars($vars)){
-			if(!$this->upload_save($vars)){
-				$s .= "Couldn't upload zip file / update repo";
-				if($newFile){
-					$db->sql_freeresult($db->sql_query(query_escape("DELETE FROM `archive_files` WHERE `id`=%d",$this->id)));
-					return $s;
-				}
-				$s .= '<br>';
-			}
-		}
-		$imagesarray = $this->imagearray_save_vars($vars);
-		$query = "UPDATE `archive_files` SET";
-		$params = array();
-		$updateVars = array('name','description','forum_url','repo_url','name_83');
-		foreach(array_merge($updateVars,array('category','extra_authors')) as $v){
-			if(isset($_POST[$v])){
-				$query .= "`$v`='%s',";
-				$params[] = $vars[$v];
-			}
-		}
-		$query .= "`images`='%s' WHERE `id`=%d";
-		
-		$params[] = json_encode($imagesarray[0]);
-		$params[] = $this->id;
-		array_unshift($params,$query);
-		
-		$db->sql_freeresult($db->sql_query(call_user_func_array('query_escape',$params)));
-		
-		$s .= $imagesarray[1];
-		foreach($updateVars as $k){
-			if(isset($_POST[$k])){
-				$this->$k = $vars[$k];
-			}
-		}
-		$s .= 'Saved file! <a href="?file='.$this->id.'">view it</a>';
-		return $s;
-	}
-	public function downloadInfo(){
-		if(!$this->exists() || !$this->canView()){
-			return array('type' => 'invalid');
-		}
-		$this->goextra();
-		
-		$f = $this->filename;
-		if(!$f){
-			$f = $this->name.'.zip';
-		}
-		return array('type' => 'build','filename' => $f,'id' => $this->id);
-	}
-	public function download(){
-		global $db;
-		if(!$this->exists() || !$this->canView()){
-			return;
-		}
-		$db->sql_freeresult($db->sql_query(query_escape("UPDATE `archive_files` SET `downloads`=`downloads`+1 WHERE `id`=%d",$this->id)));
 	}
 }
 class Files{

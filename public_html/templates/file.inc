@@ -11,7 +11,7 @@
 <table id="fileDescription" class="descriptionTable" cellspacing="0" cellpadding="0">
 	<tr><th colspan="2">{name} (&nbsp;<a href="download.php?id={id}" download>Download</a>&nbsp;)
 	{#if {{can_edit}}}
-		<a href="?edit={id}" id="editfile">Edit</a>
+		<a href="edit.php?id={id}" id="editfile">Edit</a>
 	{#endif}</th></tr>
 	<tr><td>Author{#if sizeof({{extra_authors}})>0}s{#endif}</td><td><a href="?author={authorId}">{author}</a>
 		{#foreach {{extra_authors}} as $id => $name}
@@ -52,7 +52,7 @@
 		<tr><td>Version</td><td>{version}</td></tr>
 	{#endif}
 	{#if {{forum_url}}}
-		<tr><td>Forum-Topic</td><td><a href="{forum_url}" target="_blank">{forum_url}</a></td></tr>
+		<tr><td>Forum-Topic</td><td><a href="{forum_url}" target="_blank">{forum_replies} Replies</a></td></tr>
 	{#endif}
 	{#if {{repo_url}}}
 		<tr><td>Code-Repository</td><td><a href="{repo_url}" target="_blank">{repo_url}</a></td></tr>

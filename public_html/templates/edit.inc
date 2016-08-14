@@ -12,7 +12,7 @@
 {#else}
 	<h1>Upload new file</h1>
 {#endif}
-<form id="fileeditform" action="?save={id}" method="post" enctype="multipart/form-data">
+<form id="fileeditform" action="edit.php?save={id}" method="post" enctype="multipart/form-data">
 	Name:<input type="text" name="name" value="{name}">
 			{!getHelpHTML('The name of the file as it will be displayed')}<br>
 	File type:

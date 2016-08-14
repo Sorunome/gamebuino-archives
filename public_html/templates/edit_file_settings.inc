@@ -2,7 +2,7 @@
 	<h2>File Settings</h2>
 	<label>Forum-Topic (optional):<input type="url" name="forum_url" value="{forum_url}"></label>
 			{!getHelpHTML('A link to the forum topic where discussion about this program/game occured')}<br>
-	<input type="hidden" name="category" value="{'['.implode('][',{{categories}}).']'}">
+	<input type="hidden" name="category" value="{!'['.implode('][',{{categories}}).']'}">
 	Tags:{!getHelpHTML('The tags your game should have, you can add multiple')}
 	<div id="categoriesContent">Please enable Javascript!</div><br>
 	Extra authors:{!getHelpHTML('Did you develop your game with other people? Here you can add them as an author!')}
@@ -79,23 +79,33 @@
 					return this.dataset.id;
 				}).get().join(',');
 				$('input[name="extra_authors"]').val(authorIds);
+			},
+			addName = function(){
+				var name = $('#extraAuthorsContent > input').val();
+				$.getJSON('edit.php?authorcheck='+encodeURIComponent(name),function(data){
+					if(data.id != -1){
+						$('#extraAuthorsContent').prepend(
+							$('<div>').attr('data-id',data.id).text(data.username).append(' ',
+								$('<a>').attr('href','#').text('x')
+							)
+						);
+						$('#extraAuthorsContent > input').val('');
+						reloadAuthorIds();
+					}else{
+						alert('Username not found!');
+					}
+				});
 			};
 		reloadAuthorIds();
 		$('#extraAuthorsContent > a').click(function(e){
 			e.preventDefault();
-			var name = $('#extraAuthorsContent > input').val();
-			$.getJSON('./?edit_authorcheck='+encodeURIComponent(name),function(data){
-				if(data.id != -1){
-					$('#extraAuthorsContent').prepend(
-						$('<div>').attr('data-id',data.id).text(data.username).append(' ',
-							$('<a>').attr('href','#').text('x')
-						)
-					);
-					$('#extraAuthorsContent > input').val('');
-				}else{
-					alert('Username not found!');
-				}
-			});
+			addName();
 		});
+		$('#extraAuthorsContent > input').keypress(function(e){
+			if(e.which == 13){
+				e.preventDefault();
+				addName();
+			}
+		})
 	});
 </script>

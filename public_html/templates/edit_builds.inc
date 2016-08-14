@@ -10,10 +10,10 @@
 	$(function(){
 		$('#edit_new_build').click(function(e){
 			e.preventDefault();
-			$.getJSON('?build={id}',function(data){
+			$.getJSON('edit.php?build={id}',function(data){
 				if(data.success){
 					alert('Build triggered!');
-					$.getJSON('?get_build='+data.id,function(data){
+					$.getJSON('edit.php?get_build='+data.id,function(data){
 						if(data.success){
 							$('#edit_builds_container').prepend(data.html);
 						}
