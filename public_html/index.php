@@ -88,6 +88,7 @@ if(request_var('file',false)){
 			'username' => ''
 		));
 	}
+	$db->sql_freeresult($result);
 }elseif(request_var('get_build',false)){
 	global $db;
 	$result = $db->sql_query(query_escape("SELECT `id`,`status`,UNIX_TIMESTAMP(`ts`) AS `ts`,`file` FROM `archive_queue` WHERE `type`=0 AND `id`=%d",(int)request_var('get_build','invalid')));

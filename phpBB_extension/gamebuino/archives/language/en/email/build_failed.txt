@@ -1,0 +1,2 @@
+Subject: {NOTIFICATION_SUBJECT}
+your build failed!

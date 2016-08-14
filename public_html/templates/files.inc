@@ -16,7 +16,7 @@
 			{#if $i == $cursort}
 				<div class="button is-checked changestuff sortorder" data-num="{$i}">{$s}</div>
 			{#else}
-				<a class="button changestuff sortorder" data-num="<?=$i?>"
+				<a class="button changestuff sortorder" data-num="{$i}"
 					href="{url}&amp;sort={$i}&amp;direction={$curdir}{#if {{limit}}}&amp;limit={$curlimit}{#endif}&amp;tags={$tags}">{$s}</a>
 			{#endif}
 		{#endforeach}
@@ -39,7 +39,7 @@
 					{#if $l == $curlimit}
 						<div class="button is-checked changestuff sortlimit" data-num="{$l}">{$l}</div>
 					{#else}
-						<a class="button changestuff sortlimit" data-num="<?=$l?>"
+						<a class="button changestuff sortlimit" data-num="{$l}"
 							href="{url}&amp;sort={$cursort}&amp;direction={$curdir}&amp;limit={$l}&amp;tags={$tags}">{$l}</a>
 					{#endif}
 				{#endforeach}
@@ -57,12 +57,12 @@
 
 		<div class="buttongroup"><div class="button is-checked" style="cursor:default;">Tags:</div>
 			<span id="taglistpicker"><div class="button error">Please enable Javascript</div></span>
-			<input type="hidden" id="taglist" value="<?=$tags?>">
+			<input type="hidden" id="taglist" value="{$tags}">
 			
 			<script type="text/javascript">
 				$(function(){
-					var taglist = <?=json_encode(array('_0' => 'All') + getCategoryListDropdown())?>,
-						tags = <?=json_encode(explode('][',substr($tags,1,strlen($tags)-2)))?>,
+					var taglist = {!json_encode(array('_0' => 'All') + getCategoryListDropdown())},
+						tags = {!json_encode(explode('][',substr($tags,1,strlen($tags)-2)))},
 						updateTagList = function(){
 							var tagIdsMix = $(".tagDropdown select").map(function(){return this.value;}),
 								tagIds = [];
@@ -159,12 +159,12 @@
 		});*/
 	});
 	$(function(){
-		var cursort = <?=$cursort?>,
-			curdir = <?=$curdir?>,
-			curlimit = <?=$curlimit?>,
+		var cursort = {!$cursort},
+			curdir = {!$curdir},
+			curlimit = {!$curlimit},
 			curtags = "[0]",
 			getNewFiles = function(){
-				var url = "<?=$this->url?>&getFiles&sort="+cursort+"&direction="+curdir+"&limit="+curlimit;
+				var url = "{url}&getFiles&sort="+cursort+"&direction="+curdir+"&limit="+curlimit;
 				if(curtags){
 					url += "&tags="+curtags;
 				}

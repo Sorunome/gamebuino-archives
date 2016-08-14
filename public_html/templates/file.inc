@@ -9,7 +9,7 @@
 	<strong>This file isn't public!</strong>
 {#endif}
 <table id="fileDescription" class="descriptionTable" cellspacing="0" cellpadding="0">
-	<tr><th colspan="2"><?=$this->name?> (&nbsp;<a href="download.php?id={id}" download>Download</a>&nbsp;)
+	<tr><th colspan="2">{name} (&nbsp;<a href="download.php?id={id}" download>Download</a>&nbsp;)
 	{#if {{can_edit}}}
 		<a href="?edit={id}" id="editfile">Edit</a>
 	{#endif}</th></tr>
@@ -58,7 +58,7 @@
 		<tr><td>Code-Repository</td><td><a href="{repo_url}" target="_blank">{repo_url}</a></td></tr>
 	{#endif}
 	<tr><td>Tags</td><td>
-	<?php $cats = getCategoryList(); ?>
+	{:set $cats getCategoryList()}
 	{#foreach {{categories}} as $c}
 		<a href="?tags=[{$c}]">{!$cats[$c]}</a>
 	{#endforeach}

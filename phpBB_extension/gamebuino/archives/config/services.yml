@@ -1,0 +1,50 @@
+services:
+    gamebuino.archives.listener:
+        class: gamebuino\archives\event\listener
+        arguments:
+            - @controller.helper
+            - @template
+        tags:
+            - { name: event.listener }
+    gamebuino.archives.notification.type.build_success:
+        class: gamebuino\archives\notification\build_success
+        scope: prototype
+        arguments:
+            - @user_loader
+            - @dbal.conn
+            - @cache.driver
+            - @user
+            - @auth
+            - @config
+            - %core.root_path%
+            - %core.php_ext%
+            - %tables.notification_types%
+            - %tables.notifications%
+            - %tables.user_notifications%
+        tags:
+            - { name: notification.type }
+    gamebuino.archives.notification.type.build_failed:
+        class: gamebuino\archives\notification\build_failed
+        scope: prototype
+        arguments:
+            - @user_loader
+            - @dbal.conn
+            - @cache.driver
+            - @user
+            - @auth
+            - @config
+            - %core.root_path%
+            - %core.php_ext%
+            - %tables.notification_types%
+            - %tables.notifications%
+            - %tables.user_notifications%
+        tags:
+            - { name: notification.type }
+    gamebuino.archives.console.command.archive.notify:
+        class: gamebuino\archives\console\notify
+        arguments:
+            - @user
+            - @dbal.conn
+            - @notification_manager
+        tags:
+            - { name: console.command }

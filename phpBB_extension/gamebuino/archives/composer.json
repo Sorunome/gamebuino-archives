@@ -1,0 +1,23 @@
+{
+	"name": "gamebuino/archives",
+	"type": "phpbb-extension",
+	"description": "Gamebuino Archives Extension for phpBB 3.1",
+	"homepage": "http://gamebuino.com",
+	"version": "1.0.0",
+	"license": "GPL-3.0",
+	"authors": [{
+		"name": "Sorunome",
+		"email": "mail@sorunome.de",
+		"homepage": "https://sorunome.de",
+		"role": "Developer"
+	}],
+	"require": {
+		"php": ">=5.3.3"
+	},
+	"extra": {
+		"display-name": "Gamebuino Archives Extension",
+		"soft-require" : {
+			"phpbb/phpbb": "3.1.*"
+		}
+	}
+}
