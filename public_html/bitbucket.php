@@ -36,7 +36,7 @@ class WebgitUser extends Git_webauth {
 				$this->set_refresh_token('');
 				return false;
 			}
-			$this->set_refresh_token($data['refresh_token']);
+			$this->set_refresh_token($json['refresh_token']);
 			return $this->getUserInfo(true);
 		}
 		return array(

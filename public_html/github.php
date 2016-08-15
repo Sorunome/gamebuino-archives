@@ -39,6 +39,21 @@ class WebgitUser extends Git_webauth {
 		global $github_oauth_client_id,$github_oauth_client_secret;
 		return $this->api_verify('https://github.com/login/oauth/access_token','write:repo_hook',$code,$github_oauth_client_id,$github_oauth_client_secret);
 	}
+	public function addHook($repo,$code,$fid){
+		global $site_url;
+		$json = $this->api_get('https://api.github.com/repos/'.$repo.'/hooks',true,json_encode(array(
+			'name' => 'web',
+			'config' => array(
+				'url' => $site_url.'/github.php?build='.$fid,
+				'content_type' => 'json',
+				'secret' => $code
+			),
+			'active' => true,
+			'events' => array('release','push')
+		)),array(
+			'Content-Type' => 'application/json'
+		));
+	}
 }
 if(isset($included) && $included){
 	return;
@@ -71,5 +86,51 @@ if(isset($included) && $included){
 	echo json_encode(array_merge(array(
 		'exists' => true
 	),$u->getInfo()));
+	exit;
+}elseif(isset($_GET['build'])){
+	header('Content-Type: text/plain');
+	$f = new File($_GET['build']);
+	if(!$f->exists()){
+		echo 'File doesn\'t exist!';
+		exit;
+	}
+	if(!isset($_SERVER['HTTP_X_HUB_SIGNATURE']) || !isset($_SERVER['HTTP_X_GITHUB_EVENT'])){
+		echo 'Permission denied';
+		exit;
+	}
+	$hash = explode('=',$_SERVER['HTTP_X_HUB_SIGNATURE']);
+	$data = file_get_contents('php://input');
+	if(hash_hmac($hash[0],$data,$f->getHookKey()) != $hash[1] || !($data = json_decode($data,true))){
+		echo 'Permission denied';
+		exit;
+	}
+	
+	$msg = '';
+	switch($_SERVER['HTTP_X_GITHUB_EVENT']){
+		case 'ping':
+			$msg = 'Just pinging, nothing to do';
+			break;
+		case 'release':
+			if($data['action'] != 'published'){
+				$msg = 'This release isn\'t public, nothing to do';
+			}
+			break;
+		case 'push':
+			if(strpos($data['ref'],'refs/tags/') !== 0 || !$data['created']){
+				$msg = 'No new tag was pushed, nothing to do';
+			}
+			break;
+		default:
+			$msg = 'Unkown event, nothing to do';
+	}
+	if($msg){
+		echo $msg;
+		exit;
+	}
+	if($f->build(true) == -1){
+		echo 'Triggering build failed!';
+		exit;
+	}
+	echo 'Triggered building of file!';
 	exit;
 }

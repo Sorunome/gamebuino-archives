@@ -203,6 +203,7 @@ class ServerLink(server.ServerHandler):
 		for line in temp:
 			try:
 				data = json.loads(line)
+				writeLog('[serverlink] '+str(data),'DEBUG')
 				parseClientInput(data,socket = self.socket)
 			except:
 				traceback.print_exc()

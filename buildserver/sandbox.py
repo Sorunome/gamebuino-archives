@@ -104,7 +104,9 @@ class Box:
 		self.log('Building sandbox')
 		try:
 			self.success = False
+			
 			if self.state == self.STATE_READY:
+				self.log('nothing to do')
 				return True
 			assert(self.state == self.STATE_UNREADY)
 			
@@ -113,7 +115,7 @@ class Box:
 			
 			if os.path.isfile(PATH+'/mktemplate.lock') or not ct.defined:
 				assert(self.makeTemplate())
-			
+				
 			if ct.running and not ct.shutdown(timeout=30):
 				ct.stop()
 			assert(not ct.running)
@@ -138,13 +140,20 @@ class Box:
 			time.sleep(10) # we don't want a busy wait!
 			self.destroy_box()
 			return False
-	def destroy_box(self,triggerBuild = True):
-		self.log('Destroying box')
+	def stop_box(self):
 		c = lxc.Container('gamebuino-buildserver-'+str(self.i))
 		if c.defined:
 			if c.state == 'RUNNING' and not c.shutdown(timeout=30):
 				c.stop()
 			c.destroy()
+	def destroy_box(self,triggerBuild = True):
+		self.log('Destroying box')
+		
+		# we do the stopping in a new process as else it'll (for whatever reason) block our socket
+		p = multiprocessing.Process(target=self.stop_box)
+		p.start()
+		p.join()
+		
 		
 		self.state = self.STATE_UNREADY
 		self.boxtype = self.TYPE_NOBOX

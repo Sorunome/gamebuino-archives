@@ -38,10 +38,13 @@ abstract class Git_webauth {
 	/*
 	call to
 	return $this->api_verify($url,$scope,$code,$client_id,$client_secret[,$callback($json)])
-	
-	
 	*/
 	abstract public function authUser($code);
+	
+	/*
+	Registers a hook with the repo, $code is used to identify
+	*/
+	abstract public function addHook($repo,$code,$fid);
 	
 	protected $id = -1;
 	private $uid = -1;
@@ -66,16 +69,20 @@ abstract class Git_webauth {
 		}
 		return $s;
 	}
-	protected function api_get($url,$token = true,$post = array(),$headers = array()){
+	protected function api_get($url,$token = true,$post = '',$headers = array()){
 		$headers = array_merge($this->http_headers,$headers);
 		if($token){
 			$headers['Authorization'] = 'Bearer '.$this->token;
 		}
+		$method = $post?'POST':'GET';
+		if(is_array($post)){
+			$post = http_build_query($post);
+		}
 		$s = @file_get_contents($url,false,stream_context_create(array(
 			'http' => array(
 				'header' => $this->parseHeaders($headers),
-				'method' => $post?'POST':'GET',
-				'content' => http_build_query($post)
+				'method' => $method,
+				'content' => $post
 			)
 		)));
 		return json_decode($s,true);

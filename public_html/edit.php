@@ -130,6 +130,11 @@ class File_edit extends File{
 				$u = new WebgitUser($userid);
 				if($success = $u->setRepo($vars['git_repo'],$this->id)){
 					$vars['repo_url'] = $u->getRepoUrl();
+					$_POST['repo_url'] = $vars['repo_url'];
+					
+					$vars['hook_key'] = generateRandomString(32);
+					$_POST['hook_key'] = $vars['hook_key'];
+					$u->addHook($vars['git_repo'],$vars['hook_key'],$this->id);
 				}
 				break;
 		}
@@ -259,7 +264,7 @@ class File_edit extends File{
 		// time to actually update the the file!
 		$query = "UPDATE `archive_files` SET";
 		$params = array();
-		$updateVars = array('name','description','topic_id','repo_url','name_83');
+		$updateVars = array('name','description','topic_id','repo_url','name_83','hook_key');
 		foreach(array_merge($updateVars,array('category','extra_authors')) as $v){
 			if(isset($_POST[$v])){
 				$query .= "`$v`='%s',";

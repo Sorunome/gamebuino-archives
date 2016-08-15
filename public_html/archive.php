@@ -468,9 +468,9 @@ class File{
 	public function canView(){
 		return !$this->exists() || $this->public || $this->canEdit();
 	}
-	public function build(){
+	public function build($force = false){
 		global $buildserver_path,$db;
-		if(!$this->canEdit()){
+		if(!$force && !$this->canEdit()){
 			return -1;
 		}
 		
@@ -503,7 +503,20 @@ class File{
 		if($a = json_decode($b,true)){
 			return $a['id'];
 		}
+		if($force){
+			return 1;
+		}
 		return -1;
+	}
+	public function getHookKey(){
+		global $db;
+		$res = $db->sql_query(query_escape("SELECT `hook_key` FROM `archive_files` WHERE `id`=%d",$this->id));
+		$s = '';
+		if($h = $db->sql_fetchrow($res)){
+			$s = $h['hook_key'];
+		}
+		$db->sql_freeresult($res);
+		return $s;
 	}
 }
 class Files{
