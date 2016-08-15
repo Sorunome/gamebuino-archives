@@ -8,18 +8,18 @@ function panic(){
 }
 
 class File_edit extends File{
-	private $edit = false;
-	private $name_83 = '';
-	private function populate_edit($obj){
-		if($this->file_type['type'] == 1){ // github!
+	protected $edit = false;
+	protected $name_83 = '';
+	protected function populate_edit($obj){
+		if($this->file_type['type'] == 1 || $this->file_type['type'] == 2){ // github / bitbucket!
 			$this->file_type['git_url'] = $obj['git_url'];
-			$this->file_type['github_repo'] = $obj['github_repo'];
+			$this->file_type['git_repo'] = $obj['git_repo'];
 		}
 		$this->name_83 = $obj['name_83'];
 		
 		$this->edit = true;
 	}
-	private function goedit(){
+	protected function goedit(){
 		global $userid,$isAdmin;
 		if($this->edit){
 			return;
@@ -28,7 +28,7 @@ class File_edit extends File{
 			return;
 		}
 		global $db;
-		$result = $db->sql_query(query_escape("SELECT t1.`git_url`,t1.`github_repo`,t1.`name_83` FROM `archive_files` AS t1 WHERE t1.`id`=%d",$this->id));
+		$result = $db->sql_query(query_escape("SELECT t1.`git_url`,t1.`git_repo`,t1.`name_83` FROM `archive_files` AS t1 WHERE t1.`id`=%d",$this->id));
 		if($obj = $db->sql_fetchrow($result)){
 			$this->populate_edit($obj);
 		}
@@ -36,7 +36,6 @@ class File_edit extends File{
 	}
 	public function json_edit(){
 		$this->goedit();
-		
 		return array_merge($this->json(),array(
 			'file_type' => $this->file_type,
 			'name_83' => $this->name_83
@@ -58,9 +57,9 @@ class File_edit extends File{
 		$t->addChild($tb);
 		return $t;
 	}
-	private function validate_save_vars(&$vars){
+	protected function validate_save_vars(&$vars){
 		global $db;
-		if($vars['name'] != '' && $vars['complexity'] >= 0 && $vars['complexity'] <= 3 && $vars['version'] >= 0 && $vars['version'] <= 3 && preg_match("/^(\[\d+\])+$/",$vars['category'])){
+		if($vars['name'] != '' && preg_match("/^(\[\d+\])+$/",$vars['category'])){
 			$cats = array();
 			foreach(explode('][',substr($vars['category'],1,strlen($vars['category'])-2)) as $c){
 				$cats[] = (int)$c;
@@ -85,16 +84,17 @@ class File_edit extends File{
 		}
 		return false;
 	}
-	private function validate_save_filevars($vars){
+	protected function validate_save_filevars($vars){
 		switch($vars['file_type']){
 			case 0: // zip upload
 				return sizeof($_FILES)>0 && isset($_FILES['zip']) && !is_array($_FILES['zip']['name']) && $_FILES['zip']['name'] !== '';
 			case 1: // github
-				return $vars['github_repo'] != '';
+			case 2: // bitbucket
+				return $vars['git_repo'] != '';
 		}
 		return false;
 	}
-	private function upload_save(&$vars){
+	protected function upload_save(&$vars){
 		global $db,$userid;
 		if(!$this->validate_save_filevars($vars)){
 			return false;
@@ -105,14 +105,16 @@ class File_edit extends File{
 				$success = Upload::zipFile($this->id);
 				break;
 			case 1:
-				if($this->exists() && $this->file_type['github_repo'] == $vars['github_repo']){
-					unset($_GET['repo_url']);
+			case 2:
+				if($this->exists() && $this->file_type['git_repo'] == $vars['git_repo']){
+					unset($_POST['repo_url']);
 					return true; // ok, we don't actually need to change something anyways
 				}
 				$included = true;
-				include_once('github.php');
-				$u = new GithubUser($userid);
-				if($success = $u->setRepo($vars['github_repo'],$this->id)){
+				$files = array('','github.php','bitbucket.php');
+				include_once($files[$vars['file_type']]);
+				$u = new WebgitUser($userid);
+				if($success = $u->setRepo($vars['git_repo'],$this->id)){
 					$vars['repo_url'] = $u->getRepoUrl();
 				}
 				break;
@@ -122,7 +124,7 @@ class File_edit extends File{
 		}
 		return $success;
 	}
-	private function imagearray_save_vars($vars){
+	protected function imagearray_save_vars($vars){
 		$fileArray = $this->images;
 		for($i = count($fileArray);$i < 4;$i++){
 			$fileArray[] = '';
@@ -164,7 +166,7 @@ class File_edit extends File{
 			'delimage2' => 'false',
 			'delimage3' => 'false',
 			'file_type' => 0,
-			'github_repo' => '',
+			'git_repo' => '',
 			'name_83' => '',
 			'extra_authors' => ''
 		),$_POST);
@@ -188,6 +190,9 @@ class File_edit extends File{
 		}
 		$vars['file_type'] = (int)$vars['file_type'];
 		$vars['repo_url'] = getUrl_safe($vars['repo_url']);
+		if(isset($vars['git_repo_'.$vars['file_type']])){
+			$vars['git_repo'] = $vars['git_repo_'.$vars['file_type']];
+		}
 		
 		$vars['topic_id'] = (int)preg_replace('/^\s*https?:\/\/'.preg_quote($forum_url,'/').'.*t=(\d+).*$/i','$1',$vars['forum_url']);
 		$result = $db->sql_query("SELECT `topic_id` FROM ".TOPICS_TABLE." WHERE `topic_id` = ".(int)$vars['topic_id']);
@@ -246,7 +251,7 @@ class File_edit extends File{
 				$this->$k = $vars[$k];
 			}
 		}
-		$s .= 'Saved file! <a href="?file='.$this->id.'">view it</a>';
+		$s .= 'Saved file! <a href="./?file='.$this->id.'">view it</a>';
 		return $s;
 	}
 }
@@ -340,7 +345,7 @@ if(request_var('authorcheck',false)){
 	));
 }elseif(request_var('save',false)){
 	$body_template->title = 'Saving';
-	$f = new File(request_var('save','invalid'));
+	$f = new File_edit(request_var('save','invalid'),true);
 	$templates[] = $f->save();
 }elseif(request_var('build',false)){
 	global $db;

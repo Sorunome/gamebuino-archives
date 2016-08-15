@@ -318,7 +318,6 @@ class Box:
 			}
 		]
 	def demote(self):
-		print('wtf')
 		try:
 			self.log('Running lxc container','INFO')
 			

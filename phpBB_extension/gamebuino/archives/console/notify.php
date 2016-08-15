@@ -49,7 +49,6 @@ class notify extends \phpbb\console\command\command {
 				'file_name' => htmlspecialchars($d['name']),
 				'time' => time()
 			);
-			var_dump($data);
 			switch((int)$d['status']){
 				case 0: // error!
 					$notification_type = 'gamebuino.archives.notification.type.build_failed';
@@ -63,8 +62,10 @@ class notify extends \phpbb\console\command\command {
 		$this->db->sql_freeresult($res);
 		if($notification_type){
 			$this->notification_manager->add_notifications($notification_type,$data);
+			$output->write("Sent notification!");
+		}else{
+			$output->write("Nothing to notify");
 		}
-		$output->write("hello world");
 		if(!$input->getOption('no-newline')){
 			$output->write("\n");
 		}

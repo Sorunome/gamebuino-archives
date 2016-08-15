@@ -99,9 +99,9 @@ function getHelpHTML($s){
 
 
 class Author{
-	private $id = -1;
-	private $name = '';
-	private $numFiles = 0;
+	protected $id = -1;
+	protected $name = '';
+	protected $numFiles = 0;
 	public function __construct($obj){
 		global $db;
 		if(!is_array($obj)){
@@ -239,29 +239,29 @@ class Upload {
 }
 
 class File{
-	private $id = -1;
-	private $authorId = -1;
-	private $author = '';
-	private $description = '';
-	private $images = array();
-	private $name = '';
-	private $downloads = 0;
-	private $upvotes = 0;
-	private $downvotes = 0;
-	private $extra = false;
-	private $public = false;
+	protected $id = -1;
+	protected $authorId = -1;
+	protected $author = '';
+	protected $description = '';
+	protected $images = array();
+	protected $name = '';
+	protected $downloads = 0;
+	protected $upvotes = 0;
+	protected $downvotes = 0;
+	protected $extra = false;
+	protected $public = false;
 	
-	private $filename = '';
-	private $categories = array();
-	private $forum_replies = 0;
-	private $forum_url = '';
-	private $repo_url = '';
-	private $ts_updated = 0;
-	private $ts_added = 0;
-	private $hits = 0;
-	private $extra_authors = array();
-	private $file_type = array('type' => 0);
-	private function populate_extra($obj){
+	protected $filename = '';
+	protected $categories = array();
+	protected $forum_replies = 0;
+	protected $forum_url = '';
+	protected $repo_url = '';
+	protected $ts_updated = 0;
+	protected $ts_added = 0;
+	protected $hits = 0;
+	protected $extra_authors = array();
+	protected $file_type = array('type' => 0);
+	protected function populate_extra($obj){
 		global $db,$forum_url,$forum_scheme;
 		if(!isset($obj['no_extra_queries']) || !$obj['no_extra_queries']){
 			if(preg_match('/^\d+(,\d+)*$/',$obj['extra_authors'])){ // just to be make sure we only have an integer list
@@ -295,7 +295,7 @@ class File{
 		
 		$this->extra = true;
 	}
-	private function populate($obj,$extra = false){
+	protected function populate($obj,$extra = false){
 		$this->id = (int)$obj['id'];
 		$this->authorId = (int)$obj['author'];
 		$this->description = $obj['description'];
@@ -317,7 +317,7 @@ class File{
 			$this->populate_extra($obj);
 		}
 	}
-	private function goextra(){
+	protected function goextra(){
 		if($this->extra){ // we are already!
 			return;
 		}
@@ -507,9 +507,9 @@ class File{
 	}
 }
 class Files{
-	private $files = array();
-	private $limit = false;
-	private function getFilesSQL($where = ''){
+	protected $files = array();
+	protected $limit = false;
+	protected function getFilesSQL($where = ''){
 		global $isLoggedIn,$userid,$isAdmin;
 		if(empty($where)){
 			$where = array();

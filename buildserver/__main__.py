@@ -108,14 +108,24 @@ class Box(sandbox.Box):
 				status = 0
 				if self.success:
 					
-					self.success = False
+					success_matrix = {
+						'hex':False,
+						'elf':True,
+						'inf':True
+					}
 					for root, dirs, files in os.walk(sandbox_path+'/build/bin'):
 						for f in files:
-							if f == qdata['name_83']+'.HEX' and root == sandbox_path+'/build/bin':
-								self.success = True
-								break
+							if root == sandbox_path+'/build/bin':
+								if f == qdata['name_83']+'.HEX':
+									success_matrix['hex'] = True
+								if f[-4:] == '.elf' and f != qdata['name_83']+'.elf':
+									success_matrix['elf'] = False
+								if f[-4:] == '.INF' and f != qdata['name_83']+'.INF':
+									success_matrix['inf'] = False
 						if self.success:
 							break
+					for key,val in success_matrix.items():
+						self.success = self.success and val
 					if self.success:
 						status = 3
 						
@@ -211,7 +221,7 @@ def parseClientInput(data,key = '',socket = False):
 				sql.query("INSERT INTO `archive_queue` (`file`,`type`,`status`,`output`) VALUES (%s,0,2,'')",[fdata['id']])
 				key = str(sql.insertId())
 			
-			if fdata['file_type'] <= 1:
+			if fdata['file_type'] <= 2:
 				obj = {
 					'type':'build',
 					'build':{
@@ -227,7 +237,7 @@ def parseClientInput(data,key = '',socket = False):
 						
 						QUEUE.append(obj)
 						success = True
-				elif fdata['file_type'] == 1:
+				elif fdata['file_type'] >= 1:
 					obj['build']['type'] = 'git'
 					obj['build']['git'] = fdata['git_url']
 					
@@ -358,7 +368,7 @@ if __name__ == '__main__':
 		parseClientInput({
 			'type':QUEUE_CMD_TYPES[r['type']],
 			'fid':r['file'],
-			'cmd_after',int(r['cmd_after'])
+			'cmd_after':int(r['cmd_after'])
 		},str(r['id']))
 	
 	try:
