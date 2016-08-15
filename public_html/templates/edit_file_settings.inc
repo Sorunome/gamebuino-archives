@@ -16,12 +16,12 @@
 	Description:{!getHelpHTML('A long description of your game')}<br>
 	<textarea name="description">{description}</textarea>
 	<br><br>
-	Screenshots (all optional{#if {{exists}}}, only saved if changed{#endif}):
+	Screenshots (1st required{#if {{exists}}}, only saved if changed{#endif}):
 			{!getHelpHTML('Nothing describes a game better than a screenshot! You can upload up to four, the first one will be the main screenshot.
 						Animated GIFs are allowed.')}<br>
 	{#for $i = 0;$i < 4;$i++}
 		<label>Image {$i+1}{#if $i==0} (main image){#endif}: <input type="file" name="image{$i}"></label>
-		{#if {{exists}}}
+		{#if {{exists}} && $i!=0}
 			| <label>Delete old: <input type="checkbox" name="delimage{$i}" value="true"></label>
 		{#endif}
 		<br>
@@ -106,6 +106,6 @@
 				e.preventDefault();
 				addName();
 			}
-		})
+		});
 	});
 </script>

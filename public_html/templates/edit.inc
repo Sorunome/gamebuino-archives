@@ -10,9 +10,20 @@
 {#if {{exists}}}
 	<h1>Editing file <i>{name}</i></h1><a href="./?file={id}">Back</a><br><br>
 {#else}
-	<h1>Upload new file</h1>
+	<h1>Adding new file</h1>
 {#endif}
 <form id="fileeditform" action="edit.php?save={id}" method="post" enctype="multipart/form-data">
+	{#if !{{exists}}}
+		<input type="hidden" name="name_83" value="">
+		<div id="name_83_overlay" class="overlay">
+			<div>
+				<h1>Adding new File</h1>
+				<p>You are about to add a new file to the archives! However, first you will have to set a filename following the <a href="https://en.wikipedia.org/wiki/8.3_filename" target="_blank">8.3 filename standard</a> (basically an 8-character all-uppercase name, some special characters, numbers and spaces are allowed)</p>
+				<br>
+				<label>8.3 Filename: <input type="text"></label> <button class="button">go!</button>
+			</div>
+		</div>
+	{#endif}
 	Name:<input type="text" name="name" value="{name}">
 			{!getHelpHTML('The name of the file as it will be displayed')}<br>
 	File type:
@@ -47,10 +58,12 @@
 			</div>
 		</div>
 	{#endforeach}
-	<div class="buttongroup">
-		<div class="button" id="edit_file_settings_button">File Settings</div>
-		<div class="button" id="edit_builds_button">Builds</div>
-	</div>
+	{#if {{exists}}}
+		<div class="buttongroup">
+			<div class="button" id="edit_file_settings_button">File Settings</div>
+			<div class="button" id="edit_builds_button">Builds</div>
+		</div>
+	{#endif}
 	{:children}
 	
 	<input type="submit" value="{#if {{exists}}}Save Edit{#else}Upload File{#endif}">
@@ -181,5 +194,83 @@
 			$('#edit_builds').removeClass('hidden');
 		});
 		$('#edit_file_settings').removeClass('hidden');
+	});
+	
+	{#if !{{exists}}}
+	// 8.3 filename picker
+	$(function(){
+		var checkName = function(){
+			var name = $('#name_83_overlay input').val();
+			if(name == '0' || name == ''){
+				alert('invalid name');
+				return;
+			}
+			$.getJSON('edit.php?check_name_83='+encodeURIComponent(name),function(data){
+				if(!data.success){
+					alert(data.msg);
+					return;
+				}
+				if(data.suggest && !confirm('Name "'+name+'" is already taken, would you like to use "'+data.name+'" instead?')){
+					alert('asdf');
+					return;
+				}
+				// time to DO STUFF!!!!!
+				$('input[name="name_83"]').val(data.name);
+				$('#name_83_overlay').remove();
+			});
+		}
+		$('#name_83_overlay input').keypress(function(e){
+			if(e.which == 13){
+				e.preventDefault();
+				checkName();
+			}
+		});
+		$('#name_83_overlay button').click(function(e){
+			e.preventDefault();
+			checkName();
+		});
+	});
+	{#endif}
+	
+	// JS verifier
+	$(function(){
+		$('#fileeditform').submit(function(e){
+			e.preventDefault();
+			if($('input[name="name"]').val() == ''){
+				alert('Please set a name!');
+				return;
+			}
+			{#if !{{exists}}}
+				if($('input[name="name_83"]').length == 0 || $('input[name="name_83"]').val() == ''){
+					alert('WTF how did you manage to get this error? Anyhow, try refreshing the page');
+					return;
+				}
+				var file_type = $('input[name="file_type"]:checked').val();
+				if(file_type == 0){
+					var name = $('input[name="zip"]').val();
+					if(name == ''){
+						alert('You need to add a zip file!');
+						return;
+					}else if(name.substr(name.length - 4) != '.zip'){
+						alert('File needs to be a zip!');
+						return;
+					}
+				}else{
+					if($('input[name="git_repo_'+file_type+'"]:checked').length == 0){
+						alert('You need to select a repository!');
+						return;
+					}
+				}
+				if($('input[name="image0"]').val() == ''){
+					alert('Please add a main image!');
+					return;
+				}
+			{#endif}
+			if($('input[name="category"]').val() == ''){
+				alert('You need to add at least one tag!');
+				return;
+			}
+			$(this).unbind('submit').submit();
+		});
 	});
 </script>

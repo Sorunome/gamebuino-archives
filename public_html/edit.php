@@ -3,7 +3,7 @@ $startTime = microtime(true);
 include_once('archive.php');
 
 function panic(){
-	header('Location:?error');
+	header('Location:./?error');
 	die();
 }
 
@@ -57,7 +57,7 @@ class File_edit extends File{
 		$t->addChild($tb);
 		return $t;
 	}
-	protected function validate_save_vars(&$vars){
+	private function validate_save_vars(&$vars,$newFile){
 		global $db;
 		if($vars['name'] != '' && preg_match("/^(\[\d+\])+$/",$vars['category'])){
 			$cats = array();
@@ -80,11 +80,25 @@ class File_edit extends File{
 				return false;
 			}
 			$db->sql_freeresult($result);
+			
+			if($newFile){
+				if(!preg_match('/^[A-Z0-9!#%&\'()\-@^_`{}~ ]{1,8}$/',$vars['name_83'])){
+					return false;
+				}
+				$result = $db->sql_query(query_escape("SELECT COUNT(`id`) AS `num` FROM `archive_files` WHERE `name_83`='%s'",$vars['name_83']));
+				if($u = $db->sql_fetchrow($result)){
+					if($u['num'] > 0){
+						$db->sql_freeresult($result);
+						return false;
+					}
+				}
+				$db->sql_freeresult($result);
+			}
 			return true;
 		}
 		return false;
 	}
-	protected function validate_save_filevars($vars){
+	private function validate_save_filevars($vars){
 		switch($vars['file_type']){
 			case 0: // zip upload
 				return sizeof($_FILES)>0 && isset($_FILES['zip']) && !is_array($_FILES['zip']['name']) && $_FILES['zip']['name'] !== '';
@@ -94,7 +108,7 @@ class File_edit extends File{
 		}
 		return false;
 	}
-	protected function upload_save(&$vars){
+	private function upload_save(&$vars){
 		global $db,$userid;
 		if(!$this->validate_save_filevars($vars)){
 			return false;
@@ -124,7 +138,7 @@ class File_edit extends File{
 		}
 		return $success;
 	}
-	protected function imagearray_save_vars($vars){
+	private function imagearray_save_vars($vars){
 		$fileArray = $this->images;
 		for($i = count($fileArray);$i < 4;$i++){
 			$fileArray[] = '';
@@ -148,8 +162,52 @@ class File_edit extends File{
 		}
 		return array($fileArray,$html);
 	}
-	public function save(){
+	private function soft_validate_save_vars(&$vars,$newFile){
 		global $userid,$db,$forum_url;
+		// extra authors must be an int csv list
+		if(preg_match('/^\d+(,\d+)*$/',$vars['extra_authors'])){
+			$a = array_unique(explode(',',$vars['extra_authors']));
+			if($k = array_search((string)$userid,$a) !== false){
+				unset($a[$k]);
+			}
+			$vars['extra_authors'] = implode(',',$a);
+			$result = $db->sql_query("SELECT COUNT(`user_id`) AS `num` FROM ".USERS_TABLE." WHERE `user_id` IN (".$vars['extra_authors'].")");
+			if(!($u = $db->sql_fetchrow($result)) || $u['num'] != sizeof($a)){
+				$vars['extra_authors'] = '';
+			}
+			$db->sql_freeresult($result);
+		}else{
+			$vars['extra_authors'] = '';
+		}
+		
+		// name_83 cannot be changed
+		if(!$newFile){
+			$vars['name_83'] = $this->name_83;
+		}
+		
+		$vars['file_type'] = (int)$vars['file_type'];
+		$vars['repo_url'] = getUrl_safe($vars['repo_url']);
+		
+		if(isset($vars['git_repo_'.$vars['file_type']])){ // repos are set in git_repo_<file_type>, however we want it in git_repo
+			$vars['git_repo'] = $vars['git_repo_'.$vars['file_type']];
+			$_POST['git_repo'] = $vars['git_repo'];
+		}
+		
+		// we actually store the topic ID, however the user gives us a string
+		$vars['topic_id'] = (int)preg_replace('/^\s*https?:\/\/'.preg_quote($forum_url,'/').'.*t=(\d+).*$/i','$1',$vars['forum_url']);
+		if($vars['topic_id'] != 0){
+			$result = $db->sql_query("SELECT `topic_id` FROM ".TOPICS_TABLE." WHERE `topic_id` = ".(int)$vars['topic_id']);
+			if(!($u = $db->sql_fetchrow($result)) || $u['topic_id'] != $vars['topic_id']){
+				$vars['topic_id'] = 0;
+			}
+			$db->sql_freeresult($result);
+		}
+		$_POST['topic_id'] = $vars['topic_id']; // we need to update $_POST!
+		
+		$vars['forum_url'] = (int)getUrl_safe($vars['forum_url']);
+	}
+	public function save(){
+		global $userid,$db;
 		if(!$this->canEdit()){
 			return '';
 		}
@@ -171,43 +229,12 @@ class File_edit extends File{
 			'extra_authors' => ''
 		),$_POST);
 		
-		if(preg_match('/^\d+(,\d+)*$/',$vars['extra_authors'])){
-			$a = array_unique(explode(',',$vars['extra_authors']));
-			if($k = array_search((string)$userid,$a) !== false){
-				unset($a[$k]);
-			}
-			$vars['extra_authors'] = implode(',',$a);
-			$result = $db->sql_query("SELECT COUNT(`user_id`) AS `num` FROM ".USERS_TABLE." WHERE `user_id` IN (".$vars['extra_authors'].")");
-			if(!($u = $db->sql_fetchrow($result)) || $u['num'] != sizeof($a)){
-				$vars['extra_authors'] = '';
-			}
-			$db->sql_freeresult($result);
-		}else{
-			$vars['extra_authors'] = '';
-		}
-		if($this->exists()){ // make sure we can't change it anymore
-			$vars['name_83'] = $this->name_83;
-		}
-		$vars['file_type'] = (int)$vars['file_type'];
-		$vars['repo_url'] = getUrl_safe($vars['repo_url']);
-		if(isset($vars['git_repo_'.$vars['file_type']])){
-			$vars['git_repo'] = $vars['git_repo_'.$vars['file_type']];
-		}
+		$this->soft_validate_save_vars($vars,$newFile);
 		
-		$vars['topic_id'] = (int)preg_replace('/^\s*https?:\/\/'.preg_quote($forum_url,'/').'.*t=(\d+).*$/i','$1',$vars['forum_url']);
-		$result = $db->sql_query("SELECT `topic_id` FROM ".TOPICS_TABLE." WHERE `topic_id` = ".(int)$vars['topic_id']);
-		if(!($u = $db->sql_fetchrow($result)) || $u['topic_id'] != $vars['topic_id']){
-			$vars['topic_id'] = 0;
-		}
-		$db->sql_freeresult($result);
-		$_POST['topic_id'] = $vars['topic_id']; // we need to update $_POST!
-		
-		$vars['forum_url'] = (int)getUrl_safe($vars['forum_url']);
-		
-		if(!$this->validate_save_vars($vars)){
+		if(!$this->validate_save_vars($vars,$newFile)){
 			return 'Missing required fields';
 		}
-		if(!$this->exists()){
+		if($newFile){
 			if($this->validate_save_filevars($vars)){
 				// we add the file here and upload it later!
 				$db->sql_query(query_escape("INSERT INTO `archive_files` (`author`,`votes`,`extra_authors`) VALUES (%d,'{}','')",$userid));
@@ -228,6 +255,8 @@ class File_edit extends File{
 			}
 		}
 		$imagesarray = $this->imagearray_save_vars($vars);
+		
+		// time to actually update the the file!
 		$query = "UPDATE `archive_files` SET";
 		$params = array();
 		$updateVars = array('name','description','topic_id','repo_url','name_83');
@@ -239,19 +268,25 @@ class File_edit extends File{
 		}
 		$query .= "`images`='%s' WHERE `id`=%d";
 		
+		// and of course add images
 		$params[] = json_encode($imagesarray[0]);
 		$params[] = $this->id;
 		array_unshift($params,$query);
 		
 		$db->sql_freeresult($db->sql_query(call_user_func_array('query_escape',$params)));
 		
-		$s .= $imagesarray[1];
+		$s .= $imagesarray[1]; // is there any output from the image saving?
+		
+		// let's update our object a bit
 		foreach($updateVars as $k){
 			if(isset($_POST[$k])){
 				$this->$k = $vars[$k];
 			}
 		}
 		$s .= 'Saved file! <a href="./?file='.$this->id.'">view it</a>';
+		if($newFile){
+			$this->build();
+		}
 		return $s;
 	}
 }
@@ -348,7 +383,6 @@ if(request_var('authorcheck',false)){
 	$f = new File_edit(request_var('save','invalid'),true);
 	$templates[] = $f->save();
 }elseif(request_var('build',false)){
-	global $db;
 	$f = new File(request_var('build','invalid'));
 	header('Content-Type: application/json');
 	$id = $f->build();
@@ -359,16 +393,79 @@ if(request_var('authorcheck',false)){
 }elseif(request_var('build_message',false)){
 	header('Content-Type: text/plain');
 	echo getBuildOutputMessage(request_var('build_message','invalid'));
-}elseif(isset($_GET['error'])){
-	$body_template->title = 'Error';
-	$templates[] = 'Something went wrong! Be sure to <a href="https://github.com/Sorunome/gamebuino-archives/issues" target="_blank">report the issue</a>!';
+}elseif(request_var('check_name_83',false)){
+	global $db;
+	header('Content-Type: application/json');
+	$name = request_var('check_name_83','');
+	if(!preg_match('/^[A-Z0-9!#%&\'()\-@^_`{}~ ]{1,8}$/',$name)){
+		echo json_encode(array(
+			'success' => false,
+			'msg' => 'The name must follow the 8.3 filename standard!'
+		));
+		exit;
+	}
+	$result = $db->sql_query(query_escape("SELECT COUNT(`id`) AS `num` FROM `archive_files` WHERE `name_83`='%s'",$name));
+	if($u = $db->sql_fetchrow($result)){
+		if($u['num'] == 0){
+			$db->sql_freeresult($result);
+			echo json_encode(array(
+				'success' => true,
+				'suggest' => false,
+				'name' => $name
+			));
+			exit;
+		}
+	}
+	$db->sql_freeresult($result);
+	
+	
+	// Dark magic ahead. DON'T attempt to undersatnd. Or maybe do, idk
+	// now we have to come up with suggestions...
+	$numlen = 1;
+	while(true){
+		$namelen = strlen($name);
+		$namefrag = $name;
+		
+		while($namelen + $numlen > 8){
+			$namefrag = substr($namefrag,0,-1);
+			$namelen--;
+			if($namelen == 0){
+				echo json_encode(array(
+					'success' => false,
+					'msg' => 'The name is already taken and I couldn\'t find a suggestion for you, sorry!'
+				));
+				exit;
+			}
+		}
+		$result = $db->sql_query(query_escape("SELECT `name_83` FROM `archive_files` WHERE `name_83` REGEXP '%s'",'^'.str_replace(')','[)]',str_replace('(','[(]',$namefrag)).'[0-9]{'.$numlen.'}$'));
+		$namesTaken = array();
+		while($r = $db->sql_fetchrow($result)){
+			$namesTaken[] = $r['name_83'];
+		}
+		$db->sql_freeresult($result);
+		$namesTaken[] = $namefrag; // we can't actually take this...
+		
+		$nameres = $namefrag;
+		for($i = pow(10,$numlen-1);in_array($nameres,$namesTaken) && $i < pow(10,$numlen);$nameres = $namefrag.($i++));
+		
+		if(!in_array($nameres,$namesTaken)){ // that's it, we are done!
+			break;
+		}
+		$numlen++;
+	}
+	
+	echo json_encode(array(
+		'success' => true,
+		'suggest' => true,
+		'name' => $nameres
+	));
 }else{
 	$f = new File_edit(request_var('id',-1),true);
 	$t = $f->template_edit();
 	if($t->exists){
 		$body_template->title = $t->name;
 	}else{
-		$body_template->title = 'Error';
+		$body_template->title = 'New File';
 	}
 	$templates[] = $t;
 }

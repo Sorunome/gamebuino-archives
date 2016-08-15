@@ -84,6 +84,27 @@ footer {
 	background-color:#FFFD9B;
 }
 
+.overlay {
+	position:fixed;
+	top:0;
+	left:0;
+	z-index: 10;
+	width:100vw;
+	height:100vh;
+	background-color:rgba(0,0,0,0.7);
+}
+.overlay > div {
+	width:50vw;
+	margin: 0 auto;
+	background-color:white;
+	border:1px solid black;
+	border-radius:5px;
+	padding:5px;
+	height:50vh;
+	margin-top:25vh;
+	text-align:center;
+}
+
 /* file sorter start */
 #fileSorter {
 	-webkit-touch-callout: none;
